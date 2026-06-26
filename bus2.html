@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>香港巴士 ETA 追蹤器 (智能整合版)</title>
+    <style>
+        :root {
+            --bg: #f4f4f9;
+            --card-bg: #ffffff;
+            --text: #333333;
+            --kmb-color: #e60012;
+            --ctb-color: #fcd116;
+            --ctb-text: #00558f;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif, 'Microsoft JhengHei';
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+        }
+        #app {
+            width: 100%;
+            max-width: 480px;
+            background: var(--bg);
+            min-height: 100vh;
+            box-shadow: 0 0 15px rgba(0,0,0,0.1);
+        }
+        header {
+            background-color: #2c3e50;
+            color: white;
+            padding: 15px 20px;
+            text-align: center;
+            font-size: 1.2rem;
+            font-weight: bold;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .container { padding: 15px; }
+        .section-title {
+            font-size: 1.1rem;
+            margin-bottom: 10px;
+            font-weight: bold;
+            border-bottom: 2px solid #ddd;
+            padding-bottom: 5px;
+        }
+        .search-box {
+            background: var(--card-bg);
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            margin-bottom: 20px;
+        }
+        .input-group { display: flex; gap: 10px; margin-bottom: 10px; }
+        input, select, button {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 1rem;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #34495e;
+            color: white;
+            border: none;
+            font-weight: bold;
+            cursor: pointer;
+            transition: opacity 0.2s;
+            margin-bottom: 10px;
+        }
+        button:hover { opacity: 0.9; }
+        .btn-add { background-color: #27ae60; margin-top: 5px; }
+        
+        /* 巴士卡片 (已改為以車站為單位) */
+        .bus-card {
+            background: var(--card-bg);
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            margin-bottom: 15px;
+        }
+        .stop-title {
+            font-size: 1.15rem;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+        }
+        
+        /* 追蹤標籤 (可刪除) */
+        .tracked-routes {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 12px;
+            padding-bottom: 12px;
+            border-bottom: 1px dashed #eee;
+        }
+        .tracked-tag {
+            display: inline-flex;
+            align-items: center;
+            font-size: 0.85rem;
+            padding: 4px 8px;
+            border-radius: 15px;
+            font-weight: bold;
+        }
+        .delete-x {
+            margin-left: 6px;
+            cursor: pointer;
+            background: rgba(255,255,255,0.3);
+            border-radius: 50%;
+            width: 16px;
+            height: 16px;
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 0.75rem;
+        }
+        .delete-x:hover { background: rgba(255,255,255,0.6); color: #c0392b; }
+        
+        .badge {
+            font-size: 0.85rem;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: bold;
+            min-width: 35px;
+            text-align: center;
+            display: inline-block;
+        }
+        .badge-kmb { background-color: var(--kmb-color); color: white; }
+        .badge-ctb { background-color: var(--ctb-color); color: var(--ctb-text); }
+        
+        .eta-list { list-style: none; padding: 0; margin: 0; }
+        .eta-item {
+            padding: 8px 0;
+            border-bottom: 1px solid #f5f5f5;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .eta-item:last-child { border-bottom: none; }
+        .eta-left { display: flex; align-items: center; gap: 10px; }
+        .eta-time { font-weight: bold; color: #27ae60; font-size: 1.05rem; }
+        
+        .refresh-area {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+            background: #e8f4fd;
+            padding: 10px;
+            border-radius: 8px;
+        }
+        .refresh-btn { 
+            background-color: #3498db; 
+            margin-bottom: 0; 
+            width: auto; 
+            padding: 8px 15px; 
+        }
+        #lastUpdateTime { font-size: 0.85rem; color: #2c3e50; margin-left: 10px; font-weight: bold; }
+        #loadingMsg { display: none; color: #666; font-size: 0.9rem; text-align: center; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+
+<div id="app">
+    <header>🚌 香港巴士 ETA 追蹤器</header>
+    
+    <div class="container">
+        <div class="search-box">
+            <div class="section-title">新增追蹤路線</div>
+            <div class="input-group">
+                <select id="companySelect" style="flex: 1;">
+                    <option value="KMB">九巴 KMB</option>
+                    <option value="CTB">城巴 CTB</option>
+                </select>
+                <select id="dirSelect" style="flex: 1;">
+                    <option value="outbound">去程 (Outbound)</option>
+                    <option value="inbound">回程 (Inbound)</option>
+                </select>
+            </div>
+            <input type="text" id="routeInput" placeholder="輸入路線 (如: 1A, 98D, 8X)" style="text-transform: uppercase;">
+            <button onclick="searchRoute()">🔍 搜尋車站</button>
+            <div id="loadingMsg">載入中...</div>
+            <div id="stopSelectionArea" style="display: none;">
+                <select id="stopSelect">
+                    <option value="">請選擇上車地點...</option>
+                </select>
+                <button class="btn-add" onclick="addFavorite()">加入我的最愛 ❤️</button>
+            </div>
+        </div>
+
+        <div class="section-title">我的最愛 (按車站整合)</div>
+        <div class="refresh-area">
+            <button class="refresh-btn" onclick="renderFavorites()">🔄 立即更新</button>
+            <span id="lastUpdateTime">尚未更新</span>
+        </div>
+        <div id="favoritesList"></div>
+    </div>
+</div>
+
+<script>
+    const KMB_API = 'https://data.etabus.gov.hk/v1/transport/kmb';
+    const CTB_API = 'https://rt.data.gov.hk/v2/transport/citybus';
+    
+    let allKmbStopsCache = {};
+    let favorites = JSON.parse(localStorage.getItem('hkbus_favorites')) || [];
+    let isUpdating = false; // 防止重複觸發更新
+
+    // 初始化
+    async function init() {
+        showLoading('正在初始化九巴車站資料庫...');
+        try {
+            const res = await fetch(`${KMB_API}/stop`);
+            const data = await res.json();
+            data.data.forEach(stop => {
+                allKmbStopsCache[stop.stop] = stop.name_tc;
+            });
+        } catch (error) {
+            console.error('九巴車站資料載入失敗', error);
+        }
+        hideLoading();
+        
+        renderFavorites();
+
+        // 1. 每 1 分鐘自動更新 (前景時)
+        setInterval(() => {
+            if (favorites.length > 0 && document.visibilityState === 'visible' && !isUpdating) {
+                renderFavorites();
+            }
+        }, 60000);
+
+        // 2. 喚醒更新
+        document.addEventListener("visibilitychange", () => {
+            if (document.visibilityState === "visible" && favorites.length > 0 && !isUpdating) {
+                document.getElementById('lastUpdateTime').innerText = "歡迎返嚟！更新中...";
+                document.getElementById('lastUpdateTime').style.color = "#e60012";
+                setTimeout(() => {
+                    renderFavorites();
+                }, 500);
+            }
+        });
+    }
+
+    function showLoading(msg) {
+        document.getElementById('loadingMsg').innerText = msg;
+        document.getElementById('loadingMsg').style.display = 'block';
+    }
+
+    function hideLoading() {
+        document.getElementById('loadingMsg').style.display = 'none';
+    }
+
+    // 搜尋路線
+    async function searchRoute() {
+        const company = document.getElementById('companySelect').value;
+        const route = document.getElementById('routeInput').value.trim().toUpperCase();
+        const dir = document.getElementById('dirSelect').value;
+        if (!route) return alert('請輸入路線號碼！');
+
+        showLoading(`搜尋緊 ${company} ${route} 嘅車站...`);
+        document.getElementById('stopSelectionArea').style.display = 'none';
+
+        try {
+            let stopsData = [];
+            if (company === 'KMB') {
+                const res = await fetch(`${KMB_API}/route-stop/${route}/${dir}/1`);
+                const data = await res.json();
+                if (!data.data || data.data.length === 0) throw new Error('No data');
+                stopsData = data.data.map(item => ({
+                    id: item.stop,
+                    name: allKmbStopsCache[item.stop] || '未知車站'
+                }));
+            } else if (company === 'CTB') {
+                const res = await fetch(`${CTB_API}/route-stop/CTB/${route}/${dir}`);
+                const data = await res.json();
+                if (!data.data || data.data.length === 0) throw new Error('No data');
+                const stopIds = data.data.map(item => item.stop);
+                showLoading(`下載緊城巴 ${stopIds.length} 個車站名稱...`);
+                const stopPromises = stopIds.map(async id => {
+                    try {
+                        const sRes = await fetch(`${CTB_API}/stop/${id}`);
+                        const sData = await sRes.json();
+                        return { id: id, name: sData.data.name_tc };
+                    } catch (e) {
+                        return { id: id, name: '未知車站' };
+                    }
+                });
+                stopsData = await Promise.all(stopPromises);
+            }
+            renderStopDropdown(stopsData, company, route, dir);
+        } catch (error) {
+            alert(`搵唔到呢條路線或暫時冇數據！`);
+        }
+        hideLoading();
+    }
+
+    function renderStopDropdown(stops, company, route, dir) {
+        const stopSelect = document.getElementById('stopSelect');
+        stopSelect.innerHTML = '<option value="">請選擇上車地點...</option>';
+        stops.forEach((stop, index) => {
+            const option = document.createElement('option');
+            option.value = stop.id;
+            option.dataset.route = route;
+            option.dataset.company = company;
+            option.dataset.dir = dir;
+            option.dataset.stopName = stop.name;
+            option.textContent = `${index + 1}. ${stop.name}`;
+            stopSelect.appendChild(option);
+        });
+        document.getElementById('stopSelectionArea').style.display = 'block';
+    }
+
+    function addFavorite() {
+        const select = document.getElementById('stopSelect');
+        const opt = select.options[select.selectedIndex];
+        if (!opt.value) return alert('請先選擇一個車站！');
+
+        favorites.push({
+            id: Date.now().toString(),
+            company: opt.dataset.company,
+            route: opt.dataset.route,
+            dir: opt.dataset.dir,
+            stopId: opt.value,
+            stopName: opt.dataset.stopName
+        });
+        localStorage.setItem('hkbus_favorites', JSON.stringify(favorites));
+        renderFavorites();
+        document.getElementById('stopSelectionArea').style.display = 'none';
+    }
+
+    function deleteFavorite(id) {
+        if(confirm('確定要移除呢條路線？')){
+            favorites = favorites.filter(fav => fav.id !== id);
+            localStorage.setItem('hkbus_favorites', JSON.stringify(favorites));
+            renderFavorites();
+        }
+    }
+
+    // 🔄 核心升級：統一獲取 ETA 並按車站整合及時間排序
+    async function renderFavorites() {
+        if (isUpdating) return;
+        isUpdating = true;
+        
+        const listDiv = document.getElementById('favoritesList');
+
+        if (favorites.length === 0) {
+            listDiv.innerHTML = '<p style="text-align:center; color:#999;">尚未加入任何路線。輸入上面資料開始追蹤啦！</p>';
+            document.getElementById('lastUpdateTime').innerText = '尚未有路線';
+            isUpdating = false;
+            return;
+        }
+
+        // 顯示載入中
+        listDiv.innerHTML = '<p style="text-align:center; color:#666; padding: 20px;">🔄 正在同步所有 ETA 數據...</p>';
+
+        try {
+            // 1. 同時並發 (Promise.all) 去攞齊所有已儲存路線嘅 ETA
+            const etaPromises = favorites.map(async fav => {
+                const company = fav.company || 'KMB';
+                const reqDir = fav.dir === 'inbound' ? 'I' : 'O';
+                const apiURL = company === 'KMB' 
+                    ? `${KMB_API}/eta/${fav.stopId}/${fav.route}/1` 
+                    : `${CTB_API}/eta/CTB/${fav.stopId}/${fav.route}`;
+
+                try {
+                    const res = await fetch(apiURL);
+                    const data = await res.json();
+                    const validEtas = data.data.filter(item => 
+                        item.eta != null && 
+                        item.route === fav.route &&
+                        (!item.dir || item.dir === reqDir) 
+                    );
+                    return { fav, etas: validEtas };
+                } catch (e) {
+                    return { fav, etas: [] }; // 如果其中一條線死咗，唔好影響其他
+                }
+            });
+
+            const results = await Promise.all(etaPromises);
+            const now = new Date();
+
+            // 2. 將數據以「站名」作為 Key 進行分組 (Group By Stop Name)
+            const groupedStops = {};
+
+            results.forEach(({ fav, etas }) => {
+                const stopKey = fav.stopName; // 用站名做 Grouping，即使九巴城巴 ID 唔同都能夠合體
+                
+                if (!groupedStops[stopKey]) {
+                    groupedStops[stopKey] = {
+                        stopName: fav.stopName,
+                        trackedRoutes: [],
+                        allEtas: []
+                    };
+                }
+                
+                // 記錄呢個站追蹤緊咩線，用嚟顯示上面嘅 Tag
+                groupedStops[stopKey].trackedRoutes.push(fav);
+
+                // 將 ETA 轉換並放入大雜燴陣列
+                const company = fav.company || 'KMB';
+                etas.slice(0, 3).forEach(item => { // 每條線最多攞 3 班車
+                    const etaTime = new Date(item.eta);
+                    const diffMins = Math.floor((etaTime - now) / 60000);
+                    
+                    groupedStops[stopKey].allEtas.push({
+                        route: fav.route,
+                        company: company,
+                        etaTime: etaTime,
+                        diffMins: diffMins,
+                        rmk: item.rmk_tc || item.rmk_en || ''
+                    });
+                });
+            });
+
+            // 3. 生成畫面
+            listDiv.innerHTML = '';
+            
+            Object.values(groupedStops).forEach(group => {
+                // 將該站所有班次按時間由近至遠排序 (Sorting)
+                group.allEtas.sort((a, b) => a.etaTime - b.etaTime);
+
+                const card = document.createElement('div');
+                card.className = 'bus-card';
+
+                // 生成頂部嘅「已追蹤路線」標籤及刪除掣
+                const trackedHtml = group.trackedRoutes.map(fav => {
+                    const badgeClass = (fav.company || 'KMB') === 'KMB' ? 'badge-kmb' : 'badge-ctb';
+                    const dirLabel = fav.dir === 'inbound' ? '回' : '去';
+                    return `
+                        <span class="tracked-tag ${badgeClass}">
+                            ${fav.route} (${dirLabel})
+                            <span class="delete-x" onclick="deleteFavorite('${fav.id}')" title="移除此路線">✕</span>
+                        </span>
+                    `;
+                }).join('');
+
+                // 生成 ETA 列表
+                let etaHtml = '';
+                if (group.allEtas.length === 0) {
+                    etaHtml = '<li class="eta-item" style="color:#e74c3c; justify-content: center;">暫時沒有班次資料</li>';
+                } else {
+                    // 限制每個站最多顯示 10 班車，避免列表過長
+                    etaHtml = group.allEtas.slice(0, 10).map(eta => {
+                        let timeText = '';
+                        if (eta.diffMins <= 0) timeText = '即將到站';
+                        else if (eta.diffMins === 1) timeText = '1 分鐘';
+                        else timeText = `${eta.diffMins} 分鐘`;
+
+                        const timeString = eta.etaTime.toLocaleTimeString('zh-HK', {hour: '2-digit', minute:'2-digit'});
+                        const rmkHtml = eta.rmk ? `<span style="font-size:0.75rem; color:#888;">(${eta.rmk})</span>` : '';
+                        const badgeClass = eta.company === 'KMB' ? 'badge-kmb' : 'badge-ctb';
+
+                        return `
+                            <li class="eta-item">
+                                <div class="eta-left">
+                                    <span class="badge ${badgeClass}">${eta.route}</span>
+                                    <span>${timeString} ${rmkHtml}</span>
+                                </div>
+                                <span class="eta-time">${timeText}</span>
+                            </li>
+                        `;
+                    }).join('');
+                }
+
+                card.innerHTML = `
+                    <div class="stop-title">📍 ${group.stopName}</div>
+                    <div class="tracked-routes">${trackedHtml}</div>
+                    <ul class="eta-list">${etaHtml}</ul>
+                `;
+                listDiv.appendChild(card);
+            });
+
+            // 更新時間顯示
+            const timeString = now.toLocaleTimeString('zh-HK', {hour: '2-digit', minute:'2-digit', second:'2-digit'});
+            document.getElementById('lastUpdateTime').innerText = `最後更新: ${timeString}`;
+            document.getElementById('lastUpdateTime').style.color = "#2c3e50";
+
+        } catch (error) {
+            listDiv.innerHTML = '<p style="text-align:center; color:#e74c3c;">更新失敗，請檢查網絡連接。</p>';
+        } finally {
+            isUpdating = false;
+        }
+    }
+
+    window.onload = init;
+
+</script>
+</body>
+</html>
