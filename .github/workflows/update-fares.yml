@@ -1,0 +1,40 @@
+name: 自動更新巴士車費數據
+
+on:
+  schedule:
+    # 每日凌晨 2 點 (HKT / UTC+8 相當於 UTC 18:00) 自動執行
+    - cron: '0 18 * * *'
+  # 容許喺 GitHub Actions 頁面手動撳掣執行
+  workflow_dispatch:
+
+permissions:
+  contents: write # 確保 Action 有權限將新數據 Push 返入 Repo
+
+jobs:
+  update-fares:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 獲取原始碼
+        uses: actions/checkout@v4
+
+      - name: ⚙️ 設定 Python 環境
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: 🛠️ 安裝系統依賴 (mdbtools)
+        run: sudo apt-get update && sudo apt-get install -y mdbtools
+
+      - name: 📦 安裝 Python 依賴
+        run: pip install pandas requests
+
+      - name: 🚀 執行數據轉換腳本
+        run: python process_mdb.py
+
+      - name: 💾 提交及推送更新到 GitHub
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add fares/
+          git commit -m "🔄 自動更新分段車費數據 JSON" || echo "沒有數據變更，無需提交"
+          git push
