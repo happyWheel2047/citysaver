@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    
+    <title>終極港鐵/輕鐵追蹤 Dashboard</title>
+
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="MTR ETA">
+    <meta name="theme-color" content="#2c3e50">
+    
+    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2220%22 fill=%22%232c3e50%22/><text x=%2250%22 y=%2250%22 font-size=%2260%22 text-anchor=%22middle%22 dominant-baseline=%22central%22>🚇</text></svg>">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text x=%2250%22 y=%2250%22 font-size=%2260%22 text-anchor=%22middle%22 dominant-baseline=%22central%22>🚇</text></svg>">
+
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+    <style>
+        :root {
+            --bg: #f4f4f9; --card-bg: #ffffff; --text: #333333;
+            /* MTR Line Colors */
+            --ael: #007078; --tcl: #F68F2E; --tml: #9A3B26; --tkl: #6B208B;
+            --eal: #61B4E4; --sil: #B5D333; --twl: #E2231A; --isl: #0071CE;
+            --ktl: #00AB4E; --lrt: #CD7100;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif, 'Microsoft JhengHei';
+            background-color: var(--bg); color: var(--text);
+            margin: 0; padding: 0; display: flex; justify-content: center; overscroll-behavior-y: none;
+        }
+        #app {
+            width: 100%; max-width: 480px; background: var(--bg); min-height: 100vh;
+            box-shadow: 0 0 15px rgba(0,0,0,0.1); display: flex; flex-direction: column;
+        }
+        header {
+            background-color: #2c3e50; color: white;
+            padding: calc(15px + env(safe-area-inset-top)) 20px 15px;
+            text-align: center; font-size: 1.1rem; font-weight: bold;
+            position: sticky; top: 0; z-index: 100; display: flex; justify-content: space-between; align-items: center;
+        }
+        .header-title { flex: 1; text-align: left; }
+        .header-refresh { 
+            background: #3498db; color: white; border: none; padding: 6px 12px; 
+            border-radius: 15px; font-size: 0.85rem; font-weight: bold; cursor: pointer; margin: 0; width: auto;
+        }
+        
+        .container { padding: 15px; flex: 1; padding-bottom: calc(15px + env(safe-area-inset-bottom)); }
+        .section-boss {
+            margin-bottom: 25px; background: #fff; padding: 15px;
+            border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.03);
+        }
+        .section-title {
+            font-size: 1.1rem; margin-bottom: 12px; font-weight: bold;
+            border-bottom: 2px solid #eee; padding-bottom: 8px; display: flex; align-items: center; justify-content: space-between;
+        }
+        .update-info { text-align: right; font-size: 0.75rem; color: #7f8c8d; margin-bottom: 10px; min-height: 14px; }
+
+        /* Tabs */
+        .tabs { display: flex; gap: 10px; margin-bottom: 15px; }
+        .tab {
+            flex: 1; padding: 10px; text-align: center; background: #e4e6eb;
+            border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 0.95rem; transition: 0.2s;
+        }
+        .tab.active[data-type="MTR"] { background: var(--ael); color: white; }
+        .tab.active[data-type="LRT"] { background: var(--lrt); color: white; }
+
+        .input-group { margin-bottom: 12px; }
+        label { display: block; font-size: 0.85rem; font-weight: bold; margin-bottom: 5px; color: #555; }
+        select, button {
+            width: 100%; padding: 10px; border: 1px solid #ccc;
+            border-radius: 6px; font-size: 0.95rem; box-sizing: border-box;
+        }
+        button { background-color: #34495e; color: white; border: none; font-weight: bold; cursor: pointer; margin-bottom: 10px; }
+        .btn-add-single { background-color: #16a085; }
+
+        .bus-card {
+            background: var(--card-bg); padding: 12px; border-radius: 8px;
+            border: 1px solid #f0f0f0; margin-bottom: 12px;
+        }
+        .bus-card.sortable-ghost { opacity: 0.4; }
+        
+        .stop-header {
+            display: flex; align-items: flex-start; margin-bottom: 10px;
+            background: #f8f9fa; padding: 8px; border-radius: 6px; border-left: 4px solid #16a085;
+        }
+        .drag-handle { cursor: grab; font-size: 1.2rem; color: #95a5a6; margin-right: 10px; touch-action: none; }
+        .stop-title { font-size: 0.95rem; font-weight: bold; line-height: 1.4; flex: 1; display: flex; align-items: center; gap: 8px;}
+        
+        .tracked-routes {
+            display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px;
+            padding-bottom: 10px; border-bottom: 1px dashed #eee;
+        }
+        .tracked-tag {
+            display: inline-flex; align-items: center; font-size: 0.8rem;
+            padding: 3px 8px; border-radius: 12px; font-weight: bold; color: white;
+        }
+        .delete-x {
+            margin-left: 6px; cursor: pointer; background: rgba(0,0,0,0.2);
+            border-radius: 50%; width: 14px; height: 14px; display: inline-flex;
+            justify-content: center; align-items: center; font-size: 0.7rem;
+        }
+        
+        .eta-list { list-style: none; padding: 0; margin: 0; }
+        .eta-item {
+            padding: 8px 0; border-bottom: 1px solid #f9f9f9;
+            display: flex; justify-content: space-between; align-items: center; gap: 4px;
+        }
+        .eta-item:last-child { border-bottom: none; padding-bottom: 0; }
+        .eta-route-info { display: flex; align-items: center; gap: 6px; flex-shrink: 0; max-width: 60%; }
+        .eta-time-info { display: flex; align-items: center; justify-content: flex-end; flex-grow: 1; gap: 6px; }
+
+        .origin-time { font-weight: bold; color: #e74c3c; font-size: 1.1rem; }
+        .plat-tag { font-size: 0.75rem; background: #eee; color: #555; padding: 2px 6px; border-radius: 4px; font-weight: bold; }
+        .dest-text { font-size: 0.85rem; color: #555; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        /* Line Badges */
+        .badge { font-size: 0.8rem; padding: 2px 6px; border-radius: 4px; font-weight: bold; color: white; text-align: center; }
+        .bg-AEL { background-color: var(--ael); } .bg-TCL { background-color: var(--tcl); }
+        .bg-TML { background-color: var(--tml); } .bg-TKL { background-color: var(--tkl); }
+        .bg-EAL { background-color: var(--eal); } .bg-SIL { background-color: var(--sil); }
+        .bg-TWL { background-color: var(--twl); } .bg-ISL { background-color: var(--isl); }
+        .bg-KTL { background-color: var(--ktl); } .bg-LRT { background-color: var(--lrt); }
+
+        .empty-state { text-align: center; color: #aaa; font-size: 0.9rem; padding: 20px 0; }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+<div id="app">
+    <header>
+        <div class="header-title">🚇 港鐵 / 輕鐵 ETA</div>
+        <button class="header-refresh" onclick="renderAll()">🔄 更新</button>
+    </header>
+    
+    <div class="container">
+        
+        <div class="section-boss" id="boss-single">
+            <div class="section-title">
+                <span>📍 實時到站追蹤</span>
+            </div>
+            <div id="singleUpdateTime" class="update-info">等待更新...</div>
+            <div id="singleFavoritesList"></div>
+        </div>
+
+        <div class="section-boss">
+            <div class="section-title">
+                <span>🔍 加入常用車站</span>
+            </div>
+            
+            <div class="tabs">
+                <div class="tab active" data-type="MTR" onclick="switchType('MTR')">港鐵 MTR</div>
+                <div class="tab" data-type="LRT" onclick="switchType('LRT')">輕鐵 LRT</div>
+            </div>
+
+            <div id="form-MTR">
+                <div class="input-group">
+                    <label>選擇路綫</label>
+                    <select id="mtr-line" onchange="updateMtrStations()"></select>
+                </div>
+                <div class="input-group">
+                    <label>選擇車站</label>
+                    <select id="mtr-station"></select>
+                </div>
+                <div class="input-group">
+                    <label>總站方向 (選填，用作過濾)</label>
+                    <select id="mtr-dir">
+                        <option value="ALL">顯示所有方向班次</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="form-LRT" class="hidden">
+                <div class="input-group">
+                    <label>選擇輕鐵站</label>
+                    <select id="lrt-station"></select>
+                </div>
+                <div class="input-group">
+                    <label>前往方向 / 總站 (選填，用作過濾)</label>
+                    <select id="lrt-dir">
+                        <option value="ALL">顯示所有方向班次</option>
+                        <option value="屯門碼頭">往 屯門碼頭</option>
+                        <option value="兆康">往 兆康</option>
+                        <option value="元朗">往 元朗</option>
+                        <option value="天逸">往 天逸</option>
+                        <option value="三聖">往 三聖</option>
+                        <option value="友愛">往 友愛</option>
+                    </select>
+                </div>
+            </div>
+
+            <button class="btn-add-single" onclick="addFavorite()">＋ 加入追蹤名單</button>
+        </div>
+        
+        <div class="section-boss" style="background: transparent; box-shadow: none; padding: 0;">
+            <div style="display: flex; gap: 10px;">
+                <button onclick="exportData()" style="background-color: #e67e22; flex:1;">📤 匯出備份</button>
+                <button onclick="document.getElementById('importFile').click()" style="background-color: #8e44ad; flex:1;">📥 匯入備份</button>
+                <input type="file" id="importFile" style="display:none" accept=".json" onchange="importData(event)">
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    /* --- 1. 完整 MTR 及 LRT 數據庫 --- */
+    const MTR_DATA = {
+        AEL: { name: "機場快綫", stations: { HOK:"香港", KOW:"九龍", TSY:"青衣", AIR:"機場", AWE:"博覽館" } },
+        TCL: { name: "東涌綫", stations: { HOK:"香港", KOW:"九龍", OLY:"奧運", NAM:"南昌", LAK:"荔景", TSY:"青衣", SUN:"欣澳", TUC:"東涌" } },
+        TML: { name: "屯馬綫", stations: { WKS:"烏溪沙", MOS:"馬鞍山", HEO:"恆安", TSH:"大水坑", SHM:"石門", CIO:"第一城", STW:"沙田圍", CKT:"車公廟", TAW:"大圍", HIK:"顯徑", DIH:"鑽石山", KOT:"何文田", SUW:"土瓜灣", TKW:"宋皇臺", HOM:"啟德", HUH:"紅磡", ETS:"尖東", AUS:"柯士甸", NAM:"南昌", MEF:"美孚", TWW:"荃灣西", KSR:"錦上路", YUL:"元朗", LOP:"朗屏", TIS:"天水圍", SIH:"兆康", TUM:"屯門" } },
+        TKL: { name: "將軍澳綫", stations: { NOP:"北角", QUO:"鰂魚涌", YAT:"油塘", TIK:"調景嶺", TKO:"將軍澳", LHP:"康城", HAO:"坑口", POA:"寶琳" } },
+        EAL: { name: "東鐵綫", stations: { ADM:"金鐘", EXC:"會展", HUH:"紅磡", MKK:"旺角東", KOT:"九龍塘", TAW:"大圍", SHT:"沙田", FOT:"火炭", RAC:"馬場", UNI:"大學", TAP:"大埔墟", TWO:"太和", FAN:"粉嶺", SHS:"上水", LOW:"羅湖", LMC:"落馬洲" } },
+        SIL: { name: "南港島綫", stations: { ADM:"金鐘", OCP:"海洋公園", WCH:"黃竹坑", LET:"利東", SOH:"海怡半島" } },
+        TWL: { name: "荃灣綫", stations: { CEN:"中環", ADM:"金鐘", TST:"尖沙咀", JOR:"佐敦", YMT:"油麻地", MOK:"旺角", PRE:"太子", SSP:"深水埗", CSW:"長沙灣", LCK:"荔枝角", MEF:"美孚", LAK:"荔景", KWF:"葵芳", TWH:"葵興", TSW:"荃灣" } },
+        ISL: { name: "港島綫", stations: { KET:"堅尼地城", HKU:"香港大學", SYP:"西營盤", SHW:"上環", CEN:"中環", ADM:"金鐘", WAC:"灣仔", CAB:"銅鑼灣", TIN:"天后", FOT:"炮台山", NOP:"北角", QUO:"鰂魚涌", TKO:"太古", SWH:"西灣河", SKW:"筲箕灣", HFC:"杏花邨", CHW:"柴灣" } },
+        KTL: { name: "觀塘綫", stations: { WHA:"黃埔", HOM:"何文田", YMT:"油麻地", MOK:"旺角", PRE:"太子", SKM:"石硤尾", KOT:"九龍塘", LOF:"樂富", WTS:"黃大仙", DIH:"鑽石山", CHH:"彩虹", KOB:"九龍灣", NTK:"牛頭角", KWT:"觀塘", LAT:"藍田", YAT:"油塘", TIK:"調景嶺" } }
+    };
+
+    // LRT 68個完整車站清單 (ID: Name)
+    const LRT_STATIONS = {
+        "1":"屯門碼頭", "10":"美樂", "15":"蝴蝶", "20":"輕鐵車廠", "30":"龍門", "40":"青山村", "50":"青雲", "60":"建安", "70":"河田", "75":"蔡意橋", "80":"澤豐", "90":"屯門醫院", "100":"兆康", "110":"藍地", "120":"泥圍", "130":"鍾屋村", "140":"洪水橋", "150":"坑尾村", "160":"塘坊村", "170":"屏山", "180":"水邊圍", "190":"豐年路", "200":"康樂路", "210":"大棠路", "212":"大興(南)", "218":"大興(北)", "220":"新墟", "230":"何福堂", "240":"景峰", "250":"銀圍", "260":"安定", "265":"友愛", "270":"市中心", "275":"屯門", "280":"兆麟", "285":"豐景園", "290":"屯門泳池", "295":"兆禧", "300":"三聖", "310":"鳴琴", "320":"石排", "330":"新圍", "340":"良景", "350":"田景", "360":"建生", "370":"青松", "380":"麒麟", "400":"坑尾村(支)", "425":"銀座", "430":"天耀", "445":"樂湖", "460":"天瑞", "480":"頌富", "490":"天富", "500":"天逸", "510":"天恆", "520":"濕地公園", "530":"天秀", "540":"天悅", "550":"天榮", "560":"翠湖", "570":"天慈", "600":"元朗"
+    };
+
+    let currentType = "MTR";
+    let favorites = JSON.parse(localStorage.getItem('hk_transit_pro_favs')) || [];
+    let isUpdating = false;
+
+    /* --- 2. 初始化及 UI 渲染 --- */
+    function init() {
+        // Init MTR Dropdowns
+        const mtrLineSel = document.getElementById('mtr-line');
+        mtrLineSel.innerHTML = Object.keys(MTR_DATA).map(k => `<option value="${k}">${MTR_DATA[k].name}</option>`).join('');
+        updateMtrStations();
+
+        // Init LRT Dropdowns
+        const lrtStaSel = document.getElementById('lrt-station');
+        lrtStaSel.innerHTML = Object.keys(LRT_STATIONS).map(k => `<option value="${k}">${LRT_STATIONS[k]} (${k})</option>`).join('');
+
+        renderAll();
+
+        // Init SortableJS
+        new Sortable(document.getElementById('singleFavoritesList'), {
+            animation: 150, handle: '.drag-handle',
+            onEnd: function () {
+                let newFavs = [];
+                document.querySelectorAll('#singleFavoritesList .bus-card').forEach(card => {
+                    const id = card.dataset.id;
+                    const fav = favorites.find(f => f.id === id);
+                    if (fav) newFavs.push(fav);
+                });
+                favorites = newFavs;
+                saveData();
+            }
+        });
+
+        setInterval(() => { if (favorites.length > 0 && document.visibilityState === 'visible' && !isUpdating) renderAll(); }, 30000);
+        document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && !isUpdating) renderAll(); });
+    }
+
+    function switchType(type) {
+        currentType = type;
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelector(`.tab[data-type="${type}"]`).classList.add('active');
+        document.getElementById('form-MTR').classList.toggle('hidden', type !== 'MTR');
+        document.getElementById('form-LRT').classList.toggle('hidden', type !== 'LRT');
+    }
+
+    function updateMtrStations() {
+        const line = document.getElementById('mtr-line').value;
+        const stas = MTR_DATA[line].stations;
+        document.getElementById('mtr-station').innerHTML = Object.keys(stas).map(k => `<option value="${k}">${stas[k]}</option>`).join('');
+        
+        // 提取該線所有車站作爲過濾方向
+        const dirSel = document.getElementById('mtr-dir');
+        dirSel.innerHTML = `<option value="ALL">顯示所有方向班次</option>` + 
+                           Object.keys(stas).map(k => `<option value="${k}">往 ${stas[k]}</option>`).join('');
+    }
+
+    /* --- 3. 核心儲存邏輯 --- */
+    function saveData() { localStorage.setItem('hk_transit_pro_favs', JSON.stringify(favorites)); }
+
+    function addFavorite() {
+        const id = Date.now().toString();
+        let newFav = { id, type: currentType };
+
+        if (currentType === "MTR") {
+            newFav.line = document.getElementById('mtr-line').value;
+            newFav.lineName = MTR_DATA[newFav.line].name;
+            newFav.staCode = document.getElementById('mtr-station').value;
+            newFav.staName = MTR_DATA[newFav.line].stations[newFav.staCode];
+            newFav.filterDest = document.getElementById('mtr-dir').value;
+        } else {
+            newFav.staCode = document.getElementById('lrt-station').value;
+            newFav.staName = LRT_STATIONS[newFav.staCode];
+            newFav.filterDest = document.getElementById('lrt-dir').value;
+        }
+
+        favorites.push(newFav);
+        saveData();
+        renderAll();
+    }
+
+    function deleteFavorite(id) {
+        if(confirm('移除呢個車站？')) {
+            favorites = favorites.filter(f => f.id !== id);
+            saveData(); renderAll();
+        }
+    }
+
+    /* --- 4. API 呼叫與渲染 --- */
+    async function renderAll() {
+        if (isUpdating) return;
+        isUpdating = true;
+        const timeString = new Date().toLocaleTimeString('zh-HK', {hour: '2-digit', minute:'2-digit', second:'2-digit', hour12: false});
+        document.getElementById('singleUpdateTime').innerText = `最後更新: ${timeString}`;
+        
+        const listDiv = document.getElementById('singleFavoritesList');
+        if (favorites.length === 0) { listDiv.innerHTML = '<div class="empty-state">尚未加入任何車站。</div>'; isUpdating = false; return; }
+
+        let html = '';
+        for (let fav of favorites) {
+            let etasHtml = '';
+            
+            try {
+                if (fav.type === "MTR") {
+                    const res = await fetch(`https://rt.data.gov.hk/v1/transport/mtr/getSchedule.php?line=${fav.line}&sta=${fav.staCode}`);
+                    const json = await res.json();
+                    
+                    let trains = [];
+                    if (json.status === 1 && json.data[`${fav.line}-${fav.staCode}`]) {
+                        const data = json.data[`${fav.line}-${fav.staCode}`];
+                        if (data.UP) trains.push(...data.UP);
+                        if (data.DOWN) trains.push(...data.DOWN);
+                    }
+                    
+                    // 過濾方向
+                    if (fav.filterDest !== "ALL") trains = trains.filter(t => t.dest === fav.filterDest);
+                    
+                    // 排序時間
+                    trains.sort((a,b) => new Date(a.time.replace(' ','T')) - new Date(b.time.replace(' ','T')));
+
+                    if (trains.length === 0) {
+                        etasHtml = `<li class="eta-item"><span style="color:#e74c3c">暫時沒有班次資料</span></li>`;
+                    } else {
+                        trains.forEach(t => {
+                            const destName = MTR_DATA[fav.line].stations[t.dest] || t.dest;
+                            const minStr = (t.ttnt === "0" || t.ttnt === "") ? "即將" : `${t.ttnt}分`;
+                            etasHtml += `
+                            <li class="eta-item">
+                                <div class="eta-route-info">
+                                    <span class="plat-tag">月台 ${t.plat}</span>
+                                    <span class="dest-text">往 ${destName}</span>
+                                </div>
+                                <div class="eta-time-info">
+                                    <span class="origin-time">${minStr}</span>
+                                </div>
+                            </li>`;
+                        });
+                    }
+                } else if (fav.type === "LRT") {
+                    const res = await fetch(`https://rt.data.gov.hk/v1/transport/mtr/lrt/getSchedule?station_id=${fav.staCode}`);
+                    const json = await res.json();
+
+                    let trains = [];
+                    if (json.status === 1 && json.platform_list) {
+                        json.platform_list.forEach(plat => {
+                            if(plat.route_list) {
+                                plat.route_list.forEach(route => {
+                                    if(fav.filterDest === "ALL" || route.dest_ch.includes(fav.filterDest)) {
+                                        trains.push({
+                                            route: route.route_no, dest: route.dest_ch,
+                                            time: route.time_ch, time_en: route.time_en, plat: plat.platform_id
+                                        });
+                                    }
+                                });
+                            }
+                        });
+                    }
+
+                    // LRT 返回的時間為 "14:20" 或 "Arriving", 需要客製化排序
+                    trains.sort((a, b) => {
+                        if (a.time_en === "Arriving" || a.time_en === "Departing") return -1;
+                        if (b.time_en === "Arriving" || b.time_en === "Departing") return 1;
+                        return a.time_en.localeCompare(b.time_en);
+                    });
+
+                    if (trains.length === 0) {
+                        etasHtml = `<li class="eta-item"><span style="color:#e74c3c">暫時沒有班次資料</span></li>`;
+                    } else {
+                        trains.forEach(t => {
+                            const isImminent = t.time_en === "Arriving" || t.time_en === "Departing" || t.time === "即將抵達";
+                            const minStr = isImminent ? "即將" : t.time;
+                            etasHtml += `
+                            <li class="eta-item">
+                                <div class="eta-route-info">
+                                    <span class="badge bg-LRT">${t.route}</span>
+                                    <span class="plat-tag">月台 ${t.plat}</span>
+                                    <span class="dest-text">往 ${t.dest}</span>
+                                </div>
+                                <div class="eta-time-info">
+                                    <span class="origin-time" style="${isImminent?'':'color:#d35400; font-size:1rem;'}">${minStr}</span>
+                                </div>
+                            </li>`;
+                        });
+                    }
+                }
+            } catch (e) {
+                etasHtml = `<li class="eta-item"><span style="color:red">無法取得數據</span></li>`;
+            }
+
+            const title = fav.type === "MTR" ? `${fav.lineName} - ${fav.staName}` : `輕鐵 - ${fav.staName}`;
+            const badgeClass = fav.type === "MTR" ? `bg-${fav.line}` : "bg-LRT";
+            const filterBadge = fav.filterDest !== "ALL" ? `<span class="plat-tag">只看: 往${fav.filterDest}</span>` : '';
+
+            html += `
+            <div class="bus-card" data-id="${fav.id}">
+                <div class="stop-header">
+                    <span class="drag-handle">≡</span>
+                    <div class="stop-title">
+                        <span class="badge ${badgeClass}">${fav.type}</span> 
+                        ${title}
+                    </div>
+                </div>
+                <div class="tracked-routes">
+                    <span class="tracked-tag ${badgeClass}">
+                        過濾條件: ${fav.filterDest === 'ALL' ? '全部方向' : '往 ' + fav.filterDest} 
+                        <span class="delete-x" onclick="deleteFavorite('${fav.id}')">✕</span>
+                    </span>
+                </div>
+                <ul class="eta-list">${etasHtml}</ul>
+            </div>`;
+        }
+
+        listDiv.innerHTML = html;
+        isUpdating = false;
+    }
+
+    /* --- 5. 匯出/匯入備份 --- */
+    function exportData() {
+        const dataStr = JSON.stringify({ type: 'hk_transit_backup', data: favorites }, null, 2);
+        const blob = new Blob([dataStr], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `HK_Transit_Backup_${new Date().toISOString().slice(0,10)}.json`;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    }
+    
+    function importData(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const parsed = JSON.parse(e.target.result);
+                if (parsed.type === 'hk_transit_backup') {
+                    if (confirm('確定覆蓋現有車站資料？')) { 
+                        favorites = parsed.data || []; saveData(); renderAll(); alert('✅ 成功匯入資料！'); 
+                    }
+                } else { alert('❌ 檔案格式唔啱！'); }
+            } catch (error) { alert('❌ 無法讀取檔案！'); }
+            event.target.value = ''; 
+        };
+        reader.readAsText(file);
+    }
+
+    window.onload = init;
+</script>
+</body>
+</html>
