@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HK Transit ETA - MTR & LRT</title>
+    <style>
+        /* --- CSS 設計 --- */
+        :root {
+            --mtr-color: #00529b;
+            --lrt-color: #cd7100;
+            --bg-color: #f4f6f8;
+            --card-bg: #ffffff;
+            --text-main: #333333;
+        }
+        body {
+            font-family: 'PingFang HK', 'Microsoft JhengHei', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 20px;
+        }
+        .container { max-width: 500px; margin: 0 auto; }
+        h2 { text-align: center; margin-top: 0; }
+        
+        /* 模式切換 Tabs */
+        .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
+        .tab {
+            flex: 1; padding: 12px; text-align: center;
+            background: #e4e6eb; border-radius: 8px;
+            cursor: pointer; font-weight: bold; transition: 0.3s;
+        }
+        .tab.active[data-mode="MTR"] { background: var(--mtr-color); color: white; }
+        .tab.active[data-mode="LRT"] { background: var(--lrt-color); color: white; }
+        
+        /* 卡片與表單 */
+        .card {
+            background: var(--card-bg); padding: 20px;
+            border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+            margin-bottom: 20px;
+        }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 14px; }
+        select, button {
+            width: 100%; padding: 12px;
+            border: 1px solid #ccc; border-radius: 8px;
+            font-size: 16px; box-sizing: border-box;
+        }
+        button.btn-add {
+            background: #28a745; color: white; border: none;
+            font-weight: bold; cursor: pointer; margin-top: 10px;
+        }
+        button.btn-add:hover { opacity: 0.9; }
+
+        /* 常用路線列表 */
+        .fav-item {
+            background: #fafafa; border: 1px solid #eee;
+            border-left: 6px solid #ccc; border-radius: 8px;
+            padding: 15px; margin-bottom: 15px;
+        }
+        .fav-item.MTR { border-left-color: var(--mtr-color); }
+        .fav-item.LRT { border-left-color: var(--lrt-color); }
+        .fav-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .fav-title { font-weight: bold; font-size: 16px; display: flex; align-items: center; gap: 8px; }
+        .tag { font-size: 11px; padding: 3px 6px; border-radius: 4px; color: white; }
+        .tag.MTR { background: var(--mtr-color); }
+        .tag.LRT { background: var(--lrt-color); }
+        
+        .fav-actions { display: flex; gap: 8px; }
+        .btn-refresh { background: #007bff; color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 14px; width: auto;}
+        .btn-delete { background: #dc3545; color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 14px; width: auto;}
+        
+        /* ETA 結果顯示 */
+        .eta-results { background: #fff; border-radius: 6px; }
+        .eta-row {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 8px 0; border-bottom: 1px solid #eee; font-size: 15px;
+        }
+        .eta-row:last-child { border-bottom: none; }
+        .eta-route { font-weight: bold; color: #555; }
+        .eta-time { font-weight: bold; color: #d93025; font-size: 16px; }
+        .empty-msg { color: #888; font-size: 14px; text-align: center; padding: 10px 0; }
+        
+        /* 隱藏不必要的表單區塊 */
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>🚇 到站時間追蹤 (ETA)</h2>
+    
+    <div class="tabs">
+        <div class="tab active" data-mode="MTR" onclick="switchMode('MTR')">港鐵 MTR</div>
+        <div class="tab" data-mode="LRT" onclick="switchMode('LRT')">輕鐵 LRT</div>
+    </div>
+
+    <div class="card">
+        <div id="mtr-form">
+            <div class="form-group">
+                <label>選擇路線 Line</label>
+                <select id="mtr-line" onchange="updateMTRStations()"></select>
+            </div>
+            <div class="form-group">
+                <label>上車地點 Boarding Station</label>
+                <select id="mtr-station"></select>
+            </div>
+            <div class="form-group">
+                <label>前往方向 Destination</label>
+                <select id="mtr-dest"></select>
+            </div>
+        </div>
+
+        <div id="lrt-form" class="hidden">
+            <div class="form-group">
+                <label>上車地點 Boarding Station (Sample)</label>
+                <select id="lrt-station"></select>
+            </div>
+            <div class="form-group">
+                <label>前往方向 Destination / Direction</label>
+                <select id="lrt-dest"></select>
+            </div>
+        </div>
+
+        <button class="btn-add" onclick="addFavorite()">＋ 加入用戶喜愛 (Save to LocalStorage)</button>
+    </div>
+
+    <div id="favorites-list"></div>
+</div>
+
+<script>
+    /* --- 1. 數據字典 (為保持單一檔案輕量，提供主要路線及站點範例) --- */
+    const mtrData = {
+        TML: { 
+            name: "屯馬綫 Tuen Ma Line", 
+            terminals: { TUM: "往 屯門", WKS: "往 烏溪沙" },
+            stations: { TUM: "屯門", SIH: "兆康", TIS: "天水圍", YUL: "元朗", TWW: "荃灣西", NAM: "南昌", HUH: "紅磡", TAW: "大圍", WKS: "烏溪沙" } 
+        },
+        TCL: { 
+            name: "東涌綫 Tung Chung Line", 
+            terminals: { HOK: "往 香港", TUC: "往 東涌" },
+            stations: { HOK: "香港", KOW: "九龍", OLY: "奧運", NAM: "南昌", LAK: "荔景", TSY: "青衣", SUN: "欣澳", TUC: "東涌" } 
+        }
+    };
+
+    const lrtStations = {
+        "295": "元朗 (295)", "430": "屯門市中心 (430)", "448": "屯門碼頭 (448)", 
+        "550": "天逸 (550)", "600": "兆康 (600)", "750": "天水圍 (750)"
+    };
+    const lrtDestinations = ["所有方向", "元朗", "屯門碼頭", "兆康", "天逸", "三聖", "友愛"];
+
+    let currentMode = "MTR";
+    let favorites = JSON.parse(localStorage.getItem("hk_transit_favs")) || [];
+
+    /* --- 2. 初始化及 UI 渲染 --- */
+    document.addEventListener("DOMContentLoaded", () => {
+        initMTRForm();
+        initLRTForm();
+        renderFavorites();
+    });
+
+    function switchMode(mode) {
+        currentMode = mode;
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelector(`.tab[data-mode="${mode}"]`).classList.add('active');
+        
+        if(mode === "MTR") {
+            document.getElementById('mtr-form').classList.remove('hidden');
+            document.getElementById('lrt-form').classList.add('hidden');
+        } else {
+            document.getElementById('mtr-form').classList.add('hidden');
+            document.getElementById('lrt-form').classList.remove('hidden');
+        }
+    }
+
+    function initMTRForm() {
+        const lineSelect = document.getElementById('mtr-line');
+        lineSelect.innerHTML = Object.keys(mtrData).map(k => `<option value="${k}">${mtrData[k].name}</option>`).join('');
+        updateMTRStations();
+    }
+
+    function updateMTRStations() {
+        const line = document.getElementById('mtr-line').value;
+        const data = mtrData[line];
+        
+        document.getElementById('mtr-station').innerHTML = 
+            Object.keys(data.stations).map(k => `<option value="${k}">${data.stations[k]}</option>`).join('');
+            
+        document.getElementById('mtr-dest').innerHTML = 
+            Object.keys(data.terminals).map(k => `<option value="${k}">${data.terminals[k]}</option>`).join('');
+    }
+
+    function initLRTForm() {
+        document.getElementById('lrt-station').innerHTML = 
+            Object.keys(lrtStations).map(k => `<option value="${k}">${lrtStations[k]}</option>`).join('');
+            
+        document.getElementById('lrt-dest').innerHTML = 
+            lrtDestinations.map(d => `<option value="${d}">${d}</option>`).join('');
+    }
+
+    /* --- 3. LocalStorage 處理邏輯 --- */
+    function addFavorite() {
+        let favObj = { id: Date.now().toString(), mode: currentMode };
+        
+        if (currentMode === "MTR") {
+            const line = document.getElementById('mtr-line').value;
+            const staCode = document.getElementById('mtr-station').value;
+            const destCode = document.getElementById('mtr-dest').value;
+            if(staCode === destCode) { alert("上車地點與總站方向不能相同！"); return; }
+            
+            favObj.line = line;
+            favObj.staCode = staCode;
+            favObj.staName = mtrData[line].stations[staCode];
+            favObj.destCode = destCode;
+            favObj.destName = mtrData[line].terminals[destCode];
+        } else {
+            const staCode = document.getElementById('lrt-station').value;
+            const destName = document.getElementById('lrt-dest').value;
+            
+            favObj.staCode = staCode;
+            favObj.staName = lrtStations[staCode];
+            favObj.destName = destName;
+        }
+
+        favorites.push(favObj);
+        saveAndRender();
+    }
+
+    function deleteFavorite(id) {
+        favorites = favorites.filter(f => f.id !== id);
+        saveAndRender();
+    }
+
+    function saveAndRender() {
+        localStorage.setItem("hk_transit_favs", JSON.stringify(favorites));
+        renderFavorites();
+    }
+
+    function renderFavorites() {
+        const listContainer = document.getElementById('favorites-list');
+        listContainer.innerHTML = '';
+
+        if(favorites.length === 0) {
+            listContainer.innerHTML = `<div style="text-align:center; color:#888;">尚未加入任何常用路線</div>`;
+            return;
+        }
+
+        favorites.forEach(fav => {
+            const title = fav.mode === "MTR" 
+                ? `${fav.staName} ➔ ${fav.destName}` 
+                : `${fav.staName} ➔ 往: ${fav.destName}`;
+                
+            const div = document.createElement('div');
+            div.className = `fav-item ${fav.mode}`;
+            div.innerHTML = `
+                <div class="fav-header">
+                    <div class="fav-title">
+                        <span class="tag ${fav.mode}">${fav.mode}</span> ${title}
+                    </div>
+                    <div class="fav-actions">
+                        <button class="btn-refresh" onclick="fetchETA('${fav.id}')">🔄 更新</button>
+                        <button class="btn-delete" onclick="deleteFavorite('${fav.id}')">🗑️ 刪除</button>
+                    </div>
+                </div>
+                <div class="eta-results" id="eta-result-${fav.id}">
+                    <div class="empty-msg">點擊「更新」獲取最新到站時間</div>
+                </div>
+            `;
+            listContainer.appendChild(div);
+        });
+    }
+
+    /* --- 4. 核心 API 請求 (data.gov.hk) --- */
+    async function fetchETA(id) {
+        const fav = favorites.find(f => f.id === id);
+        const resultContainer = document.getElementById(`eta-result-${id}`);
+        resultContainer.innerHTML = `<div class="empty-msg">載入中...</div>`;
+
+        try {
+            let html = '';
+            if (fav.mode === "MTR") {
+                const url = `https://rt.data.gov.hk/v1/transport/mtr/getSchedule.php?line=${fav.line}&sta=${fav.staCode}`;
+                const res = await fetch(url);
+                const json = await res.json();
+                
+                if(json.status !== 1) throw new Error("無班次資料");
+                
+                const data = json.data[`${fav.line}-${fav.staCode}`];
+                let trains = [];
+                if (data && data.UP) trains.push(...data.UP);
+                if (data && data.DOWN) trains.push(...data.DOWN);
+                
+                // 根據 User 選擇的方向 (Destination) 進行過濾
+                trains = trains.filter(t => t.dest === fav.destCode);
+                
+                if (trains.length === 0) {
+                    html = `<div class="empty-msg">暫時沒有前往該方向的班次</div>`;
+                } else {
+                    trains.forEach(t => {
+                        let min = t.ttnt === "0" || t.ttnt === "" ? "即將到達" : `${t.ttnt} 分鐘`;
+                        html += `
+                            <div class="eta-row">
+                                <span class="eta-route">月台 ${t.plat}</span>
+                                <span class="eta-time">${min}</span>
+                            </div>`;
+                    });
+                }
+            } else if (fav.mode === "LRT") {
+                const url = `https://rt.data.gov.hk/v1/transport/mtr/lrt/getSchedule?station_id=${fav.staCode}`;
+                const res = await fetch(url);
+                const json = await res.json();
+
+                if(json.status !== 1) throw new Error("無班次資料");
+
+                let trains = [];
+                if (json.platform_list) {
+                    json.platform_list.forEach(plat => {
+                        if(plat.route_list) {
+                            plat.route_list.forEach(route => {
+                                // 根據 User 選擇的 LRT 方向進行過濾
+                                if(fav.destName === "所有方向" || route.dest_ch.includes(fav.destName)) {
+                                    trains.push({
+                                        route: route.route_no, dest: route.dest_ch,
+                                        time: route.time_ch, plat: plat.platform_id
+                                    });
+                                }
+                            });
+                        }
+                    });
+                }
+
+                if (trains.length === 0) {
+                    html = `<div class="empty-msg">暫時沒有前往該方向的班次</div>`;
+                } else {
+                    trains.forEach(t => {
+                        html += `
+                            <div class="eta-row">
+                                <span class="eta-route">${t.route} (往: ${t.dest}) - 月台 ${t.plat}</span>
+                                <span class="eta-time">${t.time}</span>
+                            </div>`;
+                    });
+                }
+            }
+            resultContainer.innerHTML = html;
+        } catch (error) {
+            console.error(error);
+            resultContainer.innerHTML = `<div class="empty-msg">無法取得數據，可能為非服務時間。</div>`;
+        }
+    }
+</script>
+</body>
+</html>
