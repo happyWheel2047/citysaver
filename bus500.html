@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    
+    <title>終極巴士追蹤 Dashboard</title>
+
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="巴士 ETA">
+    <meta name="theme-color" content="#2c3e50">
+    
+    <link rel="apple-touch-icon" href="data:image/svg+xml,&lt;svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22&gt;&lt;rect width=%22100%22 height=%22100%22 rx=%2220%22 fill=%22%232c3e50%22/&gt;&lt;text x=%2250%22 y=%2250%22 font-size=%2260%22 text-anchor=%22middle%22 dominant-baseline=%22central%22&gt;🚌&lt;/text&gt;&lt;/svg&gt;">
+    <link rel="icon" href="data:image/svg+xml,&lt;svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22&gt;&lt;text x=%2250%22 y=%2250%22 font-size=%2260%22 text-anchor=%22middle%22 dominant-baseline=%22central%22&gt;🚌&lt;/text&gt;&lt;/svg&gt;">
+
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+    <style>
+        :root {
+            --bg: #f4f4f9;
+            --card-bg: #ffffff;
+            --text: #333333;
+            --kmb-color: #e60012;
+            --ctb-color: #fcd116;
+            --ctb-text: #00558f;
+            --fare-color: #d35400;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif, 'Microsoft JhengHei';
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            overscroll-behavior-y: none;
+        }
+        #app {
+            width: 100%;
+            max-width: 480px;
+            background: var(--bg);
+            min-height: 100vh;
+            box-shadow: 0 0 15px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+        }
+        header {
+            background-color: #2c3e50;
+            color: white;
+            padding: calc(15px + env(safe-area-inset-top)) 20px 15px;
+            text-align: center;
+            font-size: 1.1rem;
+            font-weight: bold;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header-title { flex: 1; text-align: left; }
+        .header-refresh { 
+            background: #3498db; color: white; border: none; padding: 6px 12px; 
+            border-radius: 15px; font-size: 0.85rem; font-weight: bold; cursor: pointer;
+            margin: 0; width: auto;
+        }
+        
+        .container { 
+            padding: 15px; 
+            flex: 1; 
+            padding-bottom: calc(15px + env(safe-area-inset-bottom));
+        }
+        .section-boss {
+            margin-bottom: 25px;
+            background: #fff;
+            padding: 15px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.03);
+        }
+        .section-title {
+            font-size: 1.1rem;
+            margin-bottom: 12px;
+            font-weight: bold;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .section-icon { margin-right: 8px; }
+        
+        .update-info {
+            text-align: right;
+            font-size: 0.75rem;
+            color: #7f8c8d;
+            margin-bottom: 10px;
+            min-height: 14px;
+        }
+
+        .input-group { display: flex; gap: 10px; margin-bottom: 10px; }
+        input[type="text"], input[type="number"], select, button {
+            width: 100%; padding: 10px; border: 1px solid #ccc;
+            border-radius: 6px; font-size: 0.95rem; box-sizing: border-box;
+        }
+        button {
+            background-color: #34495e; color: white; border: none;
+            font-weight: bold; cursor: pointer; transition: opacity 0.2s; margin-bottom: 10px;
+        }
+        button:hover { opacity: 0.9; }
+        .btn-add-single { background-color: #16a085; }
+        .btn-add-p2p { background-color: #2980b9; }
+        .btn-action-group { display: flex; gap: 10px; margin-top: 10px; }
+        .btn-action-group button { margin-bottom: 0; flex: 1; font-size: 0.85rem; padding: 12px 5px;}
+        
+        .auto-discover-box {
+            background: #e8f8f5;
+            border: 1px dashed #1abc9c;
+            padding: 8px 10px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.85rem;
+            color: #16a085;
+            font-weight: bold;
+        }
+        .auto-discover-box input { width: auto; margin: 0; transform: scale(1.2); }
+
+        .bus-card {
+            background: var(--card-bg);
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid #f0f0f0;
+            margin-bottom: 12px;
+        }
+        .bus-card.sortable-ghost { opacity: 0.4; }
+        
+        .stop-header {
+            display: flex; align-items: flex-start; margin-bottom: 10px;
+            background: #f8f9fa; padding: 8px; border-radius: 6px;
+        }
+        .header-single { border-left: 4px solid #16a085; }
+        .header-p2p { border-left: 4px solid #3498db; }
+        
+        .drag-handle { cursor: grab; font-size: 1.2rem; color: #95a5a6; margin-right: 10px; touch-action: none; }
+        .stop-title { font-size: 0.95rem; font-weight: bold; line-height: 1.4; flex: 1; }
+        .stop-origin { color: #2980b9; }
+        .stop-dest { color: #c0392b; margin-top: 2px; }
+        
+        .tracked-routes {
+            display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px;
+            padding-bottom: 10px; border-bottom: 1px dashed #eee;
+        }
+        .tracked-tag {
+            display: inline-flex; align-items: center; font-size: 0.8rem;
+            padding: 3px 8px; border-radius: 12px; font-weight: bold;
+        }
+        .delete-x {
+            margin-left: 6px; cursor: pointer; background: rgba(255,255,255,0.3);
+            border-radius: 50%; width: 14px; height: 14px; display: inline-flex;
+            justify-content: center; align-items: center; font-size: 0.7rem;
+        }
+        
+        .badge {
+            font-size: 0.8rem; padding: 2px 5px; border-radius: 4px; font-weight: bold;
+            min-width: 28px; text-align: center; display: inline-block; flex-shrink: 0;
+        }
+        .badge-kmb { background-color: var(--kmb-color); color: white; }
+        .badge-ctb { background-color: var(--ctb-color); color: var(--ctb-text); }
+        
+        .fare-tag {
+            font-weight: bold; color: var(--fare-color); background: #fdf2e9;
+            padding: 1px 3px; border-radius: 4px; font-size: 0.7rem; border: 1px solid #fad7a1;
+        }
+
+        .eta-list { list-style: none; padding: 0; margin: 0; }
+        .eta-item {
+            padding: 8px 0; border-bottom: 1px solid #f9f9f9;
+            display: flex; justify-content: space-between; align-items: center; gap: 4px;
+        }
+        .eta-item:last-child { border-bottom: none; padding-bottom: 0; }
+        
+        .eta-route-info { display: flex; align-items: center; gap: 4px; flex-shrink: 0; max-width: 50%; }
+        .eta-time-info { display: flex; align-items: center; justify-content: flex-end; flex-grow: 1; gap: 4px; }
+
+        .origin-time { font-weight: bold; color: #27ae60; font-size: 0.9rem; }
+        .dest-time { font-weight: bold; font-size: 0.85rem; }
+        .arrow-icon { color: #bdc3c7; font-size: 0.7rem; }
+        
+        .fastest-tag {
+            background: #ffcccc; color: #c0392b; font-size: 0.65rem;
+            padding: 1px 3px; border-radius: 3px; font-weight: bold; flex-shrink: 0;
+        }
+
+        .rmk-text { color: #7f8c8d; font-size: 0.7rem; max-width: 40px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .dest-text { font-size: 0.75rem; color: #555; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 50px; }
+        
+        #loadingMsg { display: none; color: #666; font-size: 0.9rem; text-align: center; margin-bottom: 10px; }
+        .manual-fare-container {
+            display: flex; align-items: center; gap: 10px; margin: 10px 0;
+            background: #fef5f0; padding: 8px 12px; border-radius: 6px; border: 1px dashed var(--fare-color);
+        }
+        .manual-fare-label { font-size: 0.85rem; font-weight: bold; color: var(--fare-color); white-space: nowrap; }
+        .empty-state { text-align: center; color: #aaa; font-size: 0.9rem; padding: 20px 0; }
+    </style>
+</head>
+<body>
+
+<div id="app">
+    <header>
+        <div class="header-title">🚌 終極巴士 Dashboard</div>
+        <button class="header-refresh" onclick="renderAll()">🔄 更新</button>
+    </header>
+    
+    <div class="container">
+        
+        <div class="section-boss" id="boss-single">
+            <div class="section-title">
+                <span><span class="section-icon">📍</span> 單站到站追蹤</span>
+            </div>
+            <div id="singleUpdateTime" class="update-info"></div>
+            <div id="singleFavoritesList"></div>
+        </div>
+
+        <div class="section-boss" id="boss-p2p">
+            <div class="section-title">
+                <span><span class="section-icon">🗺️</span> 點對點追蹤</span>
+            </div>
+            <div id="p2pUpdateTime" class="update-info" style="color: rgb(39, 174, 96);"></div>
+            <div id="p2pFavoritesList"></div>
+        </div>
+
+        <div class="section-boss">
+            <div class="section-title">
+                <span><span class="section-icon">🔍</span> 搜尋與新增路線</span>
+            </div>
+            <div class="input-group">
+                <select id="companySelect" style="flex: 1;">
+                    <option value="KMB">九巴 KMB</option>
+                    <option value="CTB">城巴 CTB</option>
+                </select>
+                <select id="dirSelect" style="flex: 1;">
+                    <option value="outbound">去程 (Outbound)</option>
+                    <option value="inbound">回程 (Inbound)</option>
+                </select>
+            </div>
+            <input type="text" id="routeInput" placeholder="輸入路線 (如: 104, 112, 1A)" style="text-transform: uppercase;">
+            <button onclick="searchRoute()" style="background-color: #2c3e50;">🔍 搜尋車站與車費</button>
+            <div id="loadingMsg" style="display: none;">載入中...</div>
+            
+            <div id="stopSelectionArea" style="display: none; margin-top: 10px;">
+                <select id="originSelect" onchange="updateDestDropdown()" style="margin-bottom: 10px;">
+                    <option value="">🟢 請選擇上車地點 (必填)...</option>
+                </select>
+                
+                <select id="destSelect" style="margin-bottom: 10px;">
+                    <option value="">🏁 請選擇下車地點 (如需點對點)...</option>
+                </select>
+                
+                <div class="manual-fare-container">
+                    <span class="manual-fare-label">💰 車費($)：</span>
+                    <input type="number" id="manualFareInput" step="0.1" placeholder="手動修正">
+                </div>
+                
+                <div class="auto-discover-box" style="flex-direction: column; align-items: flex-start; gap: 8px;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <input type="checkbox" id="autoDiscoverCheck" checked="">
+                        <label for="autoDiscoverCheck">✨ 自動尋找相同路徑巴士 (支援九巴)</label>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px; margin-left: 24px;">
+                        <label for="searchRadius" style="font-size: 0.8rem; color: #16a085;">📍 搜尋範圍：</label>
+                        <select id="searchRadius" style="width: auto; padding: 4px 8px; font-size: 0.85rem; margin: 0; border: 1px solid #1abc9c; border-radius: 4px; background: #fff; color: #16a085; font-weight: bold;">
+                            <option value="50">50 米 (極精準)</option>
+                            <option value="100" selected="">100 米 (建議)</option>
+                            <option value="200">200 米</option>
+                            <option value="300">300 米</option>
+                            <option value="500">500 米 (大範圍)</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="btn-action-group">
+                    <button class="btn-add-single" onclick="addSingleFavorite()">📍 加入單站追蹤</button>
+                    <button class="btn-add-p2p" onclick="addP2PFavorite()">🗺️ 加入點對點</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="section-boss" style="background: transparent; box-shadow: none; padding: 0;">
+            <div class="input-group" style="margin-bottom: 0;">
+                <button onclick="exportData()" style="background-color: #e67e22;">📤 匯出全部備份</button>
+                <button onclick="document.getElementById('importFile').click()" style="background-color: #8e44ad;">📥 匯入全部備份</button>
+                <input type="file" id="importFile" style="display:none" accept=".json" onchange="importData(event)">
+            </div>
+            <div style="text-align: center; margin-top: 10px;">
+                <button onclick="clearLearningCache()" style="background-color: #7f8c8d; font-size: 0.8rem; padding: 8px;">清除自我學習數據庫</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const KMB_API = 'https://data.etabus.gov.hk/v1/transport/kmb';
+    const CTB_API = 'https://rt.data.gov.hk/v2/transport/citybus';
+    const TDAS_API = 'https://tdas-api.hkemobility.gov.hk/tdas/api/route';
+    
+    let allKmbStopsCache = {};
+    let singleFavorites = JSON.parse(localStorage.getItem('hkbus_favorites')) || [];
+    let p2pFavorites = JSON.parse(localStorage.getItem('hkbus_favorites_v2')) || [];
+    let travelTimeDB = JSON.parse(localStorage.getItem('hkbus_travel_time_db')) || {};
+    
+    let isUpdating = false;
+    let currentStopsData = [];
+    let currentSearch = {};
+
+    function getDistance(lat1, lon1, lat2, lon2) {
+        if (!lat1 || !lon1 || !lat2 || !lon2) return 9999;
+        const R = 6371e3; const rad = Math.PI / 180;
+        const dLat = (lat2 - lat1) * rad; const dLon = (lon2 - lon1) * rad;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * rad) * Math.cos(lat2 * rad) * Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c; 
+    }
+
+    async function init() {
+        try {
+            const res = await fetch(`${KMB_API}/stop`);
+            const data = await res.json();
+            data.data.forEach(stop => {
+                allKmbStopsCache[stop.stop] = { name: stop.name_tc, lat: parseFloat(stop.lat), long: parseFloat(stop.long) };
+            });
+        } catch (e) { console.error('九巴車站資料載入失敗'); }
+        
+        renderAll();
+
+        new Sortable(document.getElementById('singleFavoritesList'), {
+            animation: 150, handle: '.drag-handle',
+            onEnd: function () {
+                let newFavs = [];
+                document.querySelectorAll('#singleFavoritesList .bus-card').forEach(card => {
+                    if (card.dataset.ids) { card.dataset.ids.split(',').forEach(id => { let fav = singleFavorites.find(f => f.id === id); if (fav) newFavs.push(fav); }); }
+                });
+                singleFavorites = newFavs; localStorage.setItem('hkbus_favorites', JSON.stringify(singleFavorites));
+            }
+        });
+
+        new Sortable(document.getElementById('p2pFavoritesList'), {
+            animation: 150, handle: '.drag-handle',
+            onEnd: function () {
+                let newFavs = [];
+                document.querySelectorAll('#p2pFavoritesList .bus-card').forEach(card => {
+                    if (card.dataset.ids) { card.dataset.ids.split(',').forEach(id => { let fav = p2pFavorites.find(f => f.id === id); if (fav) newFavs.push(fav); }); }
+                });
+                p2pFavorites = newFavs; localStorage.setItem('hkbus_favorites_v2', JSON.stringify(p2pFavorites));
+            }
+        });
+
+        setInterval(() => { if ((singleFavorites.length > 0 || p2pFavorites.length > 0) && document.visibilityState === 'visible' && !isUpdating) renderAll(); }, 60000);
+        document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && !isUpdating) renderAll(); });
+    }
+
+    function renderAll() {
+        if (isUpdating) return;
+        isUpdating = true;
+        const timeString = new Date().toLocaleTimeString('zh-HK', {hour: '2-digit', minute:'2-digit', second:'2-digit', hour12: false});
+        document.getElementById('singleUpdateTime').innerText = `最後更新: ${timeString}`;
+        document.getElementById('p2pUpdateTime').innerText = `最後更新: ${timeString}`;
+        Promise.all([renderSingleFavorites(), renderP2PFavorites()]).then(() => { isUpdating = false; });
+    }
+
+    async function searchRoute() {
+        const company = document.getElementById('companySelect').value;
+        const route = document.getElementById('routeInput').value.trim().toUpperCase();
+        const dir = document.getElementById('dirSelect').value;
+        if (!route) return alert('請輸入路線號碼！');
+
+        document.getElementById('loadingMsg').style.display = 'block';
+        document.getElementById('stopSelectionArea').style.display = 'none';
+        currentSearch = { company, route, dir, destName: '' };
+
+        try {
+            try {
+                if (company === 'KMB') {
+                    const fRes = await fetch(`${KMB_API}/route/${route}/${dir}/1`); const fData = await fRes.json();
+                    if(fData.data) currentSearch.destName = fData.data.dest_tc;
+                } else if (company === 'CTB') {
+                    const fRes = await fetch(`${CTB_API}/route/CTB/${route}`); const fData = await fRes.json();
+                    if(fData.data) currentSearch.destName = dir === 'outbound' ? fData.data.dest_tc : fData.data.orig_tc; 
+                }
+            } catch(e) {}
+
+            let stopsData = []; let staticFares = null;
+            try { const staticRes = await fetch(`./fares/${company}/${route}.json`); if (staticRes.ok) staticFares = await staticRes.json(); } catch (e) {}
+
+            if (company === 'KMB') {
+                const res = await fetch(`${KMB_API}/route-stop/${route}/${dir}/1`); const data = await res.json();
+                if (!data.data || data.data.length === 0) throw new Error('No data');
+                stopsData = data.data.map(item => { const cache = allKmbStopsCache[item.stop] || { name: '未知車站', lat: 0, long: 0 }; return { id: item.stop, seq: item.seq, name: cache.name, lat: cache.lat, long: cache.long }; });
+            } else if (company === 'CTB') {
+                const res = await fetch(`${CTB_API}/route-stop/CTB/${route}/${dir}`); const data = await res.json();
+                if (!data.data || data.data.length === 0) throw new Error('No data');
+                const stopPromises = data.data.map(async item => {
+                    try { const sRes = await fetch(`${CTB_API}/stop/${item.stop}`); const sData = await sRes.json(); return { id: item.stop, seq: item.seq, name: sData.data.name_tc, lat: parseFloat(sData.data.lat), long: parseFloat(sData.data.long) }; }
+                    catch (e) { return { id: item.stop, seq: item.seq, name: '未知車站', lat: 0, long: 0 }; }
+                });
+                stopsData = await Promise.all(stopPromises);
+            }
+            
+            stopsData = stopsData.map(stop => { stop.fare = (staticFares && staticFares[dir] && staticFares[dir][stop.seq]) ? parseFloat(staticFares[dir][stop.seq]).toFixed(1) : '未知'; return stop; });
+            currentStopsData = stopsData; renderOriginDropdown();
+            
+        } catch (error) { alert(`搵唔到呢條路線或暫時冇數據！`); }
+        document.getElementById('loadingMsg').style.display = 'none';
+    }
+
+    function renderOriginDropdown() {
+        const originSelect = document.getElementById('originSelect');
+        originSelect.innerHTML = '<option value="">🟢 請選擇上車地點 (必填)...</option>';
+        let firstValidFare = '';
+        currentStopsData.forEach((stop, index) => {
+            if (index === 0 && stop.fare !== '未知') firstValidFare = stop.fare;
+            const option = document.createElement('option');
+            option.value = stop.id; option.dataset.index = index; option.textContent = `${index + 1}. ${stop.name} (車費: ${stop.fare !== '未知' ? '$' + stop.fare : '未知'})`;
+            originSelect.appendChild(option);
+        });
+        document.getElementById('manualFareInput').value = firstValidFare;
+        document.getElementById('destSelect').innerHTML = '<option value="">🏁 請選擇下車地點 (如需點對點)...</option>';
+        document.getElementById('stopSelectionArea').style.display = 'block';
+    }
+
+    function updateDestDropdown() {
+        const originSelect = document.getElementById('originSelect'); const destSelect = document.getElementById('destSelect');
+        const selectedOriginIndex = originSelect.selectedIndex > 0 ? parseInt(originSelect.options[originSelect.selectedIndex].dataset.index) : -1;
+        destSelect.innerHTML = '<option value="">🏁 請選擇下車地點 (如需點對點)...</option>';
+        if (selectedOriginIndex === -1) return;
+        for(let i = selectedOriginIndex + 1; i < currentStopsData.length; i++) {
+            const stop = currentStopsData[i]; const option = document.createElement('option');
+            option.value = stop.id; option.dataset.index = i; option.textContent = `${i + 1}. ${stop.name}`;
+            destSelect.appendChild(option);
+        }
+    }
+
+    function addSingleFavorite() {
+        const originSelect = document.getElementById('originSelect');
+        if (originSelect.selectedIndex === 0) return alert('請先選擇上車地點！');
+        const originStop = currentStopsData[parseInt(originSelect.options[originSelect.selectedIndex].dataset.index)];
+        const manualFare = document.getElementById('manualFareInput').value.trim();
+        const finalFare = manualFare !== "" ? parseFloat(manualFare).toFixed(1) : (originStop.fare || '?');
+
+        singleFavorites.push({ id: Date.now().toString(), company: currentSearch.company, route: currentSearch.route, dir: currentSearch.dir, stopId: originStop.id, stopName: originStop.name, lat: originStop.lat, long: originStop.long, fare: finalFare, dest: currentSearch.destName });
+        localStorage.setItem('hkbus_favorites', JSON.stringify(singleFavorites));
+        
+        resetSearchArea(); renderSingleFavorites();
+        document.getElementById('boss-single').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    async function addP2PFavorite() {
+        const originSelect = document.getElementById('originSelect'); const destSelect = document.getElementById('destSelect');
+        if (originSelect.selectedIndex === 0 || destSelect.selectedIndex === 0) return alert('點對點追蹤必須選擇「上車」同「下車」地點！');
+        
+        const originIndex = parseInt(originSelect.options[originSelect.selectedIndex].dataset.index);
+        const destIndex = parseInt(destSelect.options[destSelect.selectedIndex].dataset.index);
+        
+        const originStop = currentStopsData[originIndex];
+        const destStop = currentStopsData[destIndex];
+        const manualFare = document.getElementById('manualFareInput').value.trim();
+        const finalFare = manualFare !== "" ? parseFloat(manualFare).toFixed(1) : (originStop.fare || '?');
+
+        // Extract intermediate stops for stop-by-stop TDAS calculation
+        const routeStops = currentStopsData.slice(originIndex, destIndex + 1).map(s => ({ lat: s.lat, long: s.long }));
+
+        const newFav = {
+            id: Date.now().toString(), company: currentSearch.company, route: currentSearch.route, dir: currentSearch.dir, fare: finalFare,
+            origin: { stopId: originStop.id, stopName: originStop.name, lat: originStop.lat, long: originStop.long, seq: originStop.seq },
+            destination: { stopId: destStop.id, stopName: destStop.name, lat: destStop.lat, long: destStop.long, seq: destStop.seq },
+            routeStops: routeStops
+        };
+
+        p2pFavorites.push(newFav);
+        localStorage.setItem('hkbus_favorites_v2', JSON.stringify(p2pFavorites));
+        
+        resetSearchArea(); 
+        renderP2PFavorites();
+        document.getElementById('boss-p2p').scrollIntoView({ behavior: 'smooth' });
+
+        if (document.getElementById('autoDiscoverCheck').checked) {
+            const radius = parseInt(document.getElementById('searchRadius').value) || 100;
+            await autoDiscoverP2PRoutes(newFav, radius);
+        }
+    }
+
+    async function autoDiscoverP2PRoutes(baseFav, radius = 100) {
+        const oLat = baseFav.origin.lat; const oLong = baseFav.origin.long;
+        const dLat = baseFav.destination.lat; const dLong = baseFav.destination.long;
+
+        if (!oLat || !dLat) return;
+        const updateText = document.getElementById('p2pUpdateTime');
+        
+        try {
+            if (!window.kmbAllRouteStops) {
+                updateText.innerText = '✨ 首次智能掃描：正在下載全港九巴路線資料庫 (需時數秒)...';
+                updateText.style.color = '#e67e22';
+                let res = await fetch(`${KMB_API}/route-stop`);
+                let data = await res.json();
+                window.kmbAllRouteStops = data.data; 
+            }
+
+            updateText.innerText = `✨ 正在比對 ${radius} 米內同路徑九巴...`;
+            updateText.style.color = '#e67e22';
+
+            let oStops = []; let dStops = [];
+            for (let stopId in allKmbStopsCache) {
+                let stop = allKmbStopsCache[stopId];
+                if (getDistance(oLat, oLong, stop.lat, stop.long) <= radius) oStops.push(stopId);
+                if (getDistance(dLat, dLong, stop.lat, stop.long) <= radius) dStops.push(stopId);
+            }
+
+            let routesWithOrigin = window.kmbAllRouteStops.filter(item => oStops.includes(item.stop));
+            let routesWithDest = window.kmbAllRouteStops.filter(item => dStops.includes(item.stop));
+
+            let addedRoutesMap = new Set();
+            let foundCount = 0;
+            let fareCache = {}; 
+
+            for (let oItem of routesWithOrigin) {
+                let routeKey = `${oItem.route}_${oItem.bound}_${oItem.service_type}`;
+                let dir = oItem.bound === 'I' ? 'inbound' : 'outbound';
+                
+                if (oItem.route === baseFav.route && dir === baseFav.dir) continue;
+                if (addedRoutesMap.has(routeKey)) continue; 
+
+                let dItems = routesWithDest.filter(d => 
+                    d.route === oItem.route && 
+                    d.bound === oItem.bound && 
+                    d.service_type === oItem.service_type && 
+                    parseInt(oItem.seq) < parseInt(d.seq)
+                );
+
+                if (dItems.length > 0) {
+                    let dItem = dItems[0]; 
+                    let exists = p2pFavorites.find(f => 
+                        f.route === oItem.route && 
+                        f.dir === dir && 
+                        f.origin.stopId === oItem.stop && 
+                        f.destination.stopId === dItem.stop
+                    );
+
+                    if (!exists) {
+                        let oCache = allKmbStopsCache[oItem.stop];
+                        let dCache = allKmbStopsCache[dItem.stop];
+
+                        let fare = '?';
+                        if (fareCache[oItem.route] === undefined) {
+                            try {
+                                let fRes = await fetch(`./fares/KMB/${oItem.route}.json`);
+                                fareCache[oItem.route] = fRes.ok ? await fRes.json() : null;
+                            } catch(e) {
+                                fareCache[oItem.route] = null;
+                            }
+                        }
+                        
+                        let staticFares = fareCache[oItem.route];
+                        if (staticFares && staticFares[dir] && staticFares[dir][oItem.seq]) {
+                            fare = parseFloat(staticFares[dir][oItem.seq]).toFixed(1);
+                        } else {
+                            fare = '?'; 
+                        }
+
+                        // Collect intermediate stops for auto-discovered routes
+                        let specificRouteStops = window.kmbAllRouteStops.filter(s => 
+                            s.route === oItem.route && 
+                            s.bound === oItem.bound && 
+                            s.service_type === oItem.service_type && 
+                            parseInt(s.seq) >= parseInt(oItem.seq) && 
+                            parseInt(s.seq) <= parseInt(dItem.seq)
+                        ).sort((a, b) => parseInt(a.seq) - parseInt(b.seq));
+
+                        let routeStops = specificRouteStops.map(s => {
+                            let cache = allKmbStopsCache[s.stop];
+                            return { lat: cache ? cache.lat : 0, long: cache ? cache.long : 0 };
+                        }).filter(s => s.lat !== 0);
+
+                        p2pFavorites.push({
+                            id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
+                            company: 'KMB', route: oItem.route, dir: dir, fare: fare,
+                            origin: { stopId: oItem.stop, stopName: oCache.name, lat: oCache.lat, long: oCache.long, seq: oItem.seq },
+                            destination: { stopId: dItem.stop, stopName: dCache.name, lat: dCache.lat, long: dCache.long, seq: dItem.seq },
+                            routeStops: routeStops
+                        });
+                        addedRoutesMap.add(routeKey);
+                        foundCount++;
+                    }
+                }
+            }
+
+            if (foundCount > 0) {
+                localStorage.setItem('hkbus_favorites_v2', JSON.stringify(p2pFavorites));
+                renderP2PFavorites();
+                updateText.innerText = `✨ 掃描完成！成功為你自動加入 ${foundCount} 條同路徑路線。`;
+                updateText.style.color = '#27ae60';
+            } else {
+                updateText.innerText = `✨ 掃描完成，${radius}米內暫無其他同路徑路線。`;
+                updateText.style.color = '#7f8c8d';
+            }
+
+            setTimeout(() => { renderAll(); }, 3000);
+
+        } catch (err) {
+            console.error("Auto Discover Error:", err);
+            updateText.innerText = '❌ 智能掃描失敗，請稍後再試。';
+            updateText.style.color = '#c0392b';
+            setTimeout(() => { renderAll(); }, 3000);
+        }
+    }
+
+    function resetSearchArea() { document.getElementById('stopSelectionArea').style.display = 'none'; document.getElementById('routeInput').value = ''; }
+    function deleteSingle(id) { if(confirm('移除呢條單站路線？')) { singleFavorites = singleFavorites.filter(f => f.id !== id); localStorage.setItem('hkbus_favorites', JSON.stringify(singleFavorites)); renderSingleFavorites(); } }
+    function deleteP2P(id) { if(confirm('移除呢條點對點路線？')) { p2pFavorites = p2pFavorites.filter(f => f.id !== id); localStorage.setItem('hkbus_favorites_v2', JSON.stringify(p2pFavorites)); renderP2PFavorites(); } }
+    function clearLearningCache() { if(confirm('確定清除自我學習嘅車程數據？清除後系統會重新開始學習。')) { travelTimeDB = {}; localStorage.removeItem('hkbus_travel_time_db'); alert('已清除'); renderAll(); } }
+
+    async function renderSingleFavorites() {
+        const listDiv = document.getElementById('singleFavoritesList');
+        if (singleFavorites.length === 0) { listDiv.innerHTML = '<div class="empty-state">尚未加入單站路線。</div>'; return; }
+        try {
+            const promises = singleFavorites.map(async fav => {
+                const reqDir = fav.dir === 'inbound' ? 'I' : 'O';
+                const url = fav.company === 'KMB' ? `${KMB_API}/eta/${fav.stopId}/${fav.route}/1` : `${CTB_API}/eta/CTB/${fav.stopId}/${fav.route}`;
+                try { const res = await fetch(url); const data = await res.json(); return { fav, etas: (data.data || []).filter(i => i.eta != null && i.route === fav.route && (!i.dir || i.dir === reqDir)) }; } catch (e) { return { fav, etas: [] }; }
+            });
+            const results = await Promise.all(promises);
+            const now = new Date(); const grouped = [];
+            results.forEach(({ fav, etas }) => {
+                let group = grouped.find(g => (fav.lat && g.lat) ? getDistance(fav.lat, fav.long, g.lat, g.long) <= 50 : g.names.includes(fav.stopName));
+                if (!group) { group = { names: [fav.stopName], lat: fav.lat, long: fav.long, routes: [], allEtas: [] }; grouped.push(group); }
+                else if (!group.names.includes(fav.stopName)) group.names.push(fav.stopName);
+                group.routes.push(fav);
+                etas.slice(0, 3).forEach(item => { const eTime = new Date(item.eta); if (Math.floor((eTime - now)/60000) >= -1) group.allEtas.push({ route: fav.route, company: fav.company, fare: fav.fare, dest: fav.dest, time: eTime, diff: Math.floor((eTime - now)/60000), rmk: item.rmk_tc || item.rmk_en || '' }); });
+            });
+            listDiv.innerHTML = grouped.map(group => {
+                group.allEtas.sort((a, b) => a.time - b.time);
+                const rTags = group.routes.map(f => `<span class="tracked-tag ${f.company==='KMB'?'badge-kmb':'badge-ctb'}">${f.route} <span class="delete-x" onclick="deleteSingle('${f.id}')">✕</span></span>`).join('');
+                const eItems = group.allEtas.length === 0 ? '<li class="eta-item"><span style="color:#e74c3c">暫時沒有班次資料</span></li>' : 
+                    group.allEtas.slice(0,10).map(e => {
+                        const tText = e.diff <= 0 ? '即將' : `${e.diff}分`; 
+                        const fHtml = (e.fare && e.fare !== '?' && e.fare !== '未知') ? `<span class="fare-tag">$${e.fare}</span>` : '';
+                        const sDest = e.dest ? e.dest.substring(0, 2) : ''; const dHtml = sDest ? `<span class="dest-text">往${sDest}</span>` : '';
+                        return `<li class="eta-item"><div class="eta-route-info"><span class="badge ${e.company==='KMB'?'badge-kmb':'badge-ctb'}">${e.route}</span> ${dHtml} ${fHtml}</div><div class="eta-time-info"><span class="origin-time">${tText}</span> <span class="rmk-text">${e.rmk?`(${e.rmk})`:''}</span></div></li>`;
+                    }).join('');
+                return `<div class="bus-card" data-ids="${group.routes.map(r=>r.id).join(',')}"><div class="stop-header header-single"><span class="drag-handle">≡</span><div class="stop-title">${group.names.join(' / ')}</div></div><div class="tracked-routes">${rTags}</div><ul class="eta-list">${eItems}</ul></div>`;
+            }).join('');
+        } catch (e) { listDiv.innerHTML = '<div class="empty-state" style="color:red">網絡錯誤</div>'; }
+    }
+
+    async function renderP2PFavorites() {
+        const listDiv = document.getElementById('p2pFavoritesList');
+        if (p2pFavorites.length === 0) { listDiv.innerHTML = '<div class="empty-state">尚未加入點對點路線。</div>'; return; }
+        
+        try {
+            const promises = p2pFavorites.map(async fav => {
+                const reqDir = fav.dir === 'inbound' ? 'I' : 'O';
+                const oUrl = fav.company === 'KMB' ? `${KMB_API}/eta/${fav.origin.stopId}/${fav.route}/1` : `${CTB_API}/eta/CTB/${fav.origin.stopId}/${fav.route}`;
+                const dUrl = fav.company === 'KMB' ? `${KMB_API}/eta/${fav.destination.stopId}/${fav.route}/1` : `${CTB_API}/eta/CTB/${fav.destination.stopId}/${fav.route}`;
+                
+                let tdasReqs = [];
+                // If routeStops exist, accumulate point-to-point along the actual bus path
+                if (fav.routeStops && fav.routeStops.length > 1) {
+                    for (let i = 0; i < fav.routeStops.length - 1; i++) {
+                        tdasReqs.push(
+                            fetch(TDAS_API, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    start: { lat: fav.routeStops[i].lat, long: fav.routeStops[i].long },
+                                    end: { lat: fav.routeStops[i+1].lat, long: fav.routeStops[i+1].long },
+                                    departIn: 0, lang: "en", type: "ST"
+                                })
+                            }).then(r => r.json()).catch(() => null)
+                        );
+                    }
+                } else {
+                    // Fallback for old saved routes without intermediate stops
+                    tdasReqs.push(
+                        fetch(TDAS_API, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                start: { lat: fav.origin.lat, long: fav.origin.long },
+                                end: { lat: fav.destination.lat, long: fav.destination.long },
+                                departIn: 0, lang: "en", type: "ST"
+                            })
+                        }).then(r => r.json()).catch(() => null)
+                    );
+                }
+
+                try {
+                    const [oRes, dRes, ...tdasResults] = await Promise.all([
+                        fetch(oUrl).catch(()=>null), 
+                        fetch(dUrl).catch(()=>null), 
+                        ...tdasReqs
+                    ]); 
+                    
+                    const oData = oRes ? await oRes.json() : { data: [] }; 
+                    const dData = dRes ? await dRes.json() : { data: [] };
+                    
+                    let tdasMins = 0;
+                    let tdasSuccess = false;
+
+                    // Accumulate TDAS minutes from all segments
+                    tdasResults.forEach(tdasData => {
+                        if (tdasData && tdasData.eta) {
+                            const timeParts = tdasData.eta.split(':');
+                            if (timeParts.length === 2) {
+                                tdasMins += (parseInt(timeParts[0], 10) * 60) + parseInt(timeParts[1], 10);
+                                tdasSuccess = true;
+                            }
+                        }
+                    });
+                    
+                    return { 
+                        fav, 
+                        oEtas: (oData.data || []).filter(i => i.eta != null && i.route === fav.route && (!i.dir || i.dir === reqDir)), 
+                        dEtas: (dData.data || []).filter(i => i.eta != null && i.route === fav.route && (!i.dir || i.dir === reqDir)),
+                        tdasMins: tdasSuccess ? tdasMins : null
+                    };
+                } catch (e) { return { fav, oEtas: [], dEtas: [], tdasMins: null }; }
+            });
+            
+            const results = await Promise.all(promises); 
+            const now = new Date(); const grouped = [];
+            
+            results.forEach(({ fav, oEtas, dEtas, tdasMins }) => {
+                let group = grouped.find(g => {
+                    let oM = (fav.origin.lat && g.oLat) ? getDistance(fav.origin.lat, fav.origin.long, g.oLat, g.oLong) <= 50 : g.oNames.includes(fav.origin.stopName);
+                    let dM = (fav.destination.lat && g.dLat) ? getDistance(fav.destination.lat, fav.destination.long, g.dLat, g.dLong) <= 50 : g.dNames.includes(fav.destination.stopName);
+                    return oM && dM;
+                });
+                
+                if (!group) { 
+                    group = { oNames: [fav.origin.stopName], dNames: [fav.destination.stopName], oLat: fav.origin.lat, oLong: fav.origin.long, dLat: fav.destination.lat, dLong: fav.destination.long, routes: [], allBuses: [] }; 
+                    grouped.push(group); 
+                } else { 
+                    if (!group.oNames.includes(fav.origin.stopName)) group.oNames.push(fav.origin.stopName); 
+                    if (!group.dNames.includes(fav.destination.stopName)) group.dNames.push(fav.destination.stopName); 
+                }
+                
+                group.routes.push(fav);
+                
+                let availD = dEtas.map(e => new Date(e.eta)).sort((a,b) => a-b);
+                const routeKey = `${fav.company}_${fav.route}_${fav.dir}_${fav.origin.stopId}_${fav.destination.stopId}`;
+                const stopDiff = Math.max(1, Math.abs(parseInt(fav.destination.seq) - parseInt(fav.origin.seq)));
+                
+                let estTravelMins = null;
+                let methodType = ''; 
+                
+                if (tdasMins !== null) {
+                    // 🧠 使用 TDAS 累計分段政府數據：預計行車時間 + 每站停靠 0.8 分鐘
+                    estTravelMins = tdasMins + (stopDiff * 0.8);
+                    methodType = 'tdas';
+                } else if (travelTimeDB[routeKey]) {
+                    // 🧠 使用過往真實學習數據
+                    estTravelMins = travelTimeDB[routeKey];
+                    methodType = 'learned';
+                }
+                
+                oEtas.slice(0, 3).forEach(oItem => {
+                    const oTime = new Date(oItem.eta); 
+                    const oDiff = Math.floor((oTime - now) / 60000);
+                    
+                    if (oDiff >= -1) {
+                        let dTime = null;
+                        let finalMethod = '';
+
+                        if (estTravelMins !== null) {
+                            const expectedDTime = new Date(oTime.getTime() + (estTravelMins * 60000));
+                            let matchedIdx = -1;
+                            let smallestDiff = Infinity;
+                            
+                            // 用預期時間尋找最符合的官方終點 ETA
+                            availD.forEach((d, idx) => {
+                                let diffMins = Math.abs(d - expectedDTime) / 60000;
+                                if (d > oTime && diffMins < smallestDiff) {
+                                    smallestDiff = diffMins;
+                                    matchedIdx = idx;
+                                }
+                            });
+                            
+                            let tolerance = Math.max(12, estTravelMins * 0.35);
+                            finalMethod = methodType;
+                            
+                            if (matchedIdx !== -1 && smallestDiff <= tolerance) {
+                                dTime = availD[matchedIdx];
+                                availD.splice(matchedIdx, 1);
+                                finalMethod = 'real';
+                                
+                                // 寫入自我學習數據庫
+                                if (oDiff <= 1 && dTime) {
+                                    const actualTravelMins = Math.floor((dTime - now) / 60000);
+                                    if (actualTravelMins > 1 && actualTravelMins < 180) { 
+                                        travelTimeDB[routeKey] = travelTimeDB[routeKey] 
+                                            ? Math.round((travelTimeDB[routeKey] * 0.7) + (actualTravelMins * 0.3)) 
+                                            : actualTravelMins;
+                                        localStorage.setItem('hkbus_travel_time_db', JSON.stringify(travelTimeDB));
+                                    }
+                                }
+                            } else {
+                                dTime = expectedDTime;
+                            }
+                        }
+                        
+                        group.allBuses.push({ 
+                            route: fav.route, company: fav.company, fare: fav.fare, 
+                            oTime, oDiff, dTime, method: finalMethod || 'none',
+                            rmk: oItem.rmk_tc || oItem.rmk_en || '' 
+                        });
+                    }
+                });
+            });
+            
+            listDiv.innerHTML = grouped.map(group => {
+                group.allBuses.sort((a, b) => { 
+                    if (a.dTime && b.dTime) return a.dTime - b.dTime; 
+                    if (a.dTime) return -1; if (b.dTime) return 1; 
+                    return a.oTime - b.oTime; 
+                });
+                
+                const rTags = group.routes.map(f => `<span class="tracked-tag ${f.company==='KMB'?'badge-kmb':'badge-ctb'}">${f.route} <span class="delete-x" onclick="deleteP2P('${f.id}')">✕</span></span>`).join('');
+                
+                const eItems = group.allBuses.length === 0 ? '<li class="eta-item"><span style="color:#e74c3c">暫時沒有班次資料</span></li>' : 
+                    group.allBuses.slice(0,10).map((b, i) => {
+                        const oText = b.oDiff <= 0 ? '即將' : `${b.oDiff}分`; 
+                        
+                        let dText = '無估算數據'; 
+                        let dColor = '#95a5a6'; 
+                        
+                        if (b.dTime) {
+                            const timeStr = b.dTime.toLocaleTimeString('zh-HK', {hour: '2-digit', minute: '2-digit', hour12: false});
+                            
+                            if (b.method === 'real') {
+                                dText = `${timeStr}`;
+                                dColor = '#e67e22'; // 實時官方 ETA
+                            } else if (b.method === 'tdas') {
+                                dText = `${timeStr} 🚦`;
+                                dColor = '#2980b9'; // 藍色: 政府 TDAS
+                            } else if (b.method === 'learned') {
+                                dText = `${timeStr} (史)`;
+                                dColor = '#27ae60'; // 綠色: 歷史數據
+                            }
+                        }
+                        
+                        const fHtml = (b.fare && b.fare !== '?' && b.fare !== '未知') ? `<span class="fare-tag">$${b.fare}</span>` : ''; 
+                        const fastTag = (i === 0 && b.dTime) ? '<span class="fastest-tag">⚡快</span>' : '';
+                        
+                        return `
+                            <li class="eta-item">
+                                <div class="eta-route-info"><span class="badge ${b.company==='KMB'?'badge-kmb':'badge-ctb'}">${b.route}</span> ${fHtml}</div>
+                                <div class="eta-time-info">
+                                    <span class="origin-time">🟢${oText}</span>
+                                    <span class="arrow-icon">➔</span>
+                                    <span class="dest-time" style="color: ${dColor};">🏁${dText}</span>
+                                    ${fastTag}
+                                </div>
+                            </li>`;
+                    }).join('');
+                    
+                return `<div class="bus-card" data-ids="${group.routes.map(r=>r.id).join(',')}">
+                            <div class="stop-header header-p2p">
+                                <span class="drag-handle">≡</span>
+                                <div class="stop-title">
+                                    <div class="stop-origin">起：${group.oNames.join(' / ')}</div>
+                                    <div class="stop-dest">終：${group.dNames.join(' / ')}</div>
+                                </div>
+                            </div>
+                            <div class="tracked-routes">${rTags}</div>
+                            <ul class="eta-list">${eItems}</ul>
+                        </div>`;
+            }).join('');
+        } catch (e) { 
+            console.error(e);
+            listDiv.innerHTML = '<div class="empty-state" style="color:red">網絡或計算錯誤</div>'; 
+        }
+    }
+
+    function exportData() {
+        const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify({ type: 'hkbus_combined', single: singleFavorites, p2p: p2pFavorites, learned: travelTimeDB }, null, 2)], { type: "application/json" }));
+        a.download = `hkbus_ultimate_backup_${new Date().toISOString().slice(0,10)}.json`; document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    }
+    function importData(event) {
+        const file = event.target.files[0]; if (!file) return; const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const data = JSON.parse(e.target.result);
+                if (data.type === 'hkbus_combined') { if (confirm('確定覆蓋所有資料？')) { 
+                    singleFavorites = data.single || []; p2pFavorites = data.p2p || []; travelTimeDB = data.learned || {};
+                    localStorage.setItem('hkbus_favorites', JSON.stringify(singleFavorites)); localStorage.setItem('hkbus_favorites_v2', JSON.stringify(p2pFavorites)); localStorage.setItem('hkbus_travel_time_db', JSON.stringify(travelTimeDB));
+                    renderAll(); alert('✅ 成功匯入資料！'); 
+                } } else alert('❌ 檔案格式唔啱！');
+            } catch (error) { alert('❌ 無法讀取檔案！'); } event.target.value = ''; 
+        }; reader.readAsText(file);
+    }
+    window.onload = init;
+</script>
+
+</body>
+</html>
