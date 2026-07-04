@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2個月法律聖經衝刺追蹤器 (Pro 案例版)</title>
+    <style>
+        :root {
+            --primary: #1e3a8a;
+            --secondary: #3b82f6;
+            --bg: #f8fafc;
+            --card-bg: #ffffff;
+            --text: #334155;
+            --accent: #10b981;
+            --detail-text: #64748b;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+        }
+        h1 { margin: 0; font-size: 26px; }
+        
+        /* Timer Styles */
+        .timer-box {
+            background: rgba(255, 255, 255, 0.15);
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            display: inline-block;
+        }
+        .time-display {
+            font-size: 32px;
+            font-weight: bold;
+            font-family: monospace;
+            letter-spacing: 2px;
+        }
+        .timer-controls button {
+            background-color: white;
+            color: var(--primary);
+            border: none;
+            padding: 8px 16px;
+            margin: 5px;
+            border-radius: 4px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .timer-controls button:hover {
+            background-color: #f1f5f9;
+            transform: scale(1.05);
+        }
+
+        /* Progress Bar */
+        .progress-container {
+            background: #e2e8f0;
+            border-radius: 9999px;
+            height: 12px;
+            margin-top: 15px;
+            overflow: hidden;
+        }
+        .progress-bar {
+            background-color: var(--accent);
+            height: 100%;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        /* Book Sections */
+        .book-card {
+            background: var(--card-bg);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 25px;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+            border-left: 6px solid var(--secondary);
+        }
+        .book-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: var(--primary);
+            margin-top: 0;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 10px;
+        }
+        .chapter-list {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 12px;
+        }
+        @media(min-width: 850px) {
+            .chapter-list { grid-template-columns: 1fr 1fr; }
+        }
+        .chapter-item {
+            display: flex;
+            align-items: flex-start;
+            padding: 12px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            transition: background 0.2s;
+        }
+        .chapter-item:hover { background: #f1f5f9; }
+        .chapter-item input[type="checkbox"] {
+            margin-right: 12px;
+            margin-top: 4px;
+            transform: scale(1.3);
+            cursor: pointer;
+        }
+        .chapter-content {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            cursor: pointer;
+        }
+        .chapter-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text);
+            margin-bottom: 4px;
+        }
+        .chapter-details {
+            font-size: 13px;
+            color: var(--detail-text);
+            line-height: 1.5;
+        }
+        
+        /* 勾選後的樣式 */
+        .checked .chapter-title, 
+        .checked .chapter-details {
+            text-decoration: line-through;
+            color: #94a3b8;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>⚖️ 2個月法律聖經衝刺：案例與條文對照版</h1>
+        <p>精準記錄學習時數，時刻掌握關鍵 Legal Terms 與 Cases</p>
+        
+        <!-- 背景不休眠計時器 -->
+        <div class="timer-box">
+            <div id="display" class="time-display">00:00:00</div>
+            <div class="timer-controls">
+                <button id="startStopBtn" onclick="toggleTimer()">開始讀書</button>
+                <button onclick="resetTimer()">重設時間</button>
+            </div>
+        </div>
+        
+        <div style="margin-top:15px; font-weight:bold;">總體讀書進度：<span id="progress-text">0%</span></div>
+        <div class="progress-container">
+            <div id="progress-bar" class="progress-bar"></div>
+        </div>
+    </header>
+
+    <!-- 由 JavaScript 自動動態渲染書本與章節 -->
+    <div id="books-container"></div>
+</div>
+
+<script>
+    // 9本書籍：包含標題與超詳細的重點/條文/案例
+    const booksData = [
+        {
+            title: "1. Law and justice in Hong Kong (Eric C Ip)",
+            chapters: [
+                { title: "Ch1: Sources of Law in HK", details: "🔑 Terms: Common Law, Equity, Ordinance<br>📜 Stat: Basic Law Art 8 & 18<br>⚖️ Case: <i>Earl of Oxford's Case</i> (Equity prevails)" },
+                { title: "Ch2: Separation of Powers", details: "🔑 Terms: Executive-led, Judicial Independence<br>📜 Stat: Basic Law structure<br>⚖️ Case: <i>Leung Kwok Hung v President of LegCo</i>" },
+                { title: "Ch3: The Judiciary & Precedent", details: "🔑 Terms: Stare decisis, Ratio decidendi, Obiter dicta<br>⚖️ Case: <i>A Solicitor v Law Society of HK</i> (CFA departing from Privy Council)" }
+            ]
+        },
+        {
+            title: "2. The English legal system (Slapper & Kelly)",
+            chapters: [
+                { title: "Ch1: Statutory Interpretation", details: "🔑 Terms: Literal rule, Golden rule, Mischief rule<br>⚖️ Case: <i>Heydon's Case</i>, <i>Pepper v Hart</i> (Hansard use)" },
+                { title: "Ch2: Judicial Precedent Mechanics", details: "🔑 Terms: Binding vs Persuasive precedent<br>⚖️ Case: <i>Practice Statement 1966</i>, <i>Young v Bristol Aeroplane</i>" },
+                { title: "Ch3: Human Rights & Law", details: "🔑 Terms: Margin of appreciation, Convention rights<br>📜 Stat: Human Rights Act 1998 (UK) s.3 & s.4" }
+            ]
+        },
+        {
+            title: "3. Contract law (McKendrick)",
+            chapters: [
+                { title: "Ch1: Offer & Acceptance", details: "🔑 Terms: Invitation to treat, Consensus ad idem<br>⚖️ Case: <i>Carlill v Carbolic Smoke Ball</i>, <i>Pharmaceutical Society v Boots</i>" },
+                { title: "Ch2: Consideration & Promissory Estoppel", details: "🔑 Terms: Past consideration, Sufficiency<br>⚖️ Case: <i>Currie v Misa</i>, <i>Williams v Roffey Bros</i>, <i>High Trees</i>" },
+                { title: "Ch3: Intention to Create Legal Relations", details: "🔑 Terms: Domestic vs Commercial agreements<br>⚖️ Case: <i>Balfour v Balfour</i>, <i>Merritt v Merritt</i>" },
+                { title: "Ch4: Mistake & Frustration", details: "🔑 Terms: Common mistake, Force majeure<br>⚖️ Case: <i>Bell v Lever Bros</i>, <i>Taylor v Caldwell</i>, <i>Krell v Henry</i>" }
+            ]
+        },
+        {
+            title: "4. Poole's textbook on contract law",
+            chapters: [
+                { title: "Ch1: Content of Contract (Terms)", details: "🔑 Terms: Conditions, Warranties, Innominate terms<br>⚖️ Case: <i>Hong Kong Fir Shipping</i>, <i>Poussard v Spiers</i>" },
+                { title: "Ch2: Exemption Clauses (UK Context)", details: "🔑 Terms: Incorporation, Contra proferentem<br>📜 Stat: Unfair Contract Terms Act 1977 (UCTA)<br>⚖️ Case: <i>L'Estrange v Graucob</i>, <i>Thornton v Shoe Lane Parking</i>" },
+                { title: "Ch3: Breach & Damages", details: "🔑 Terms: Expectation interest, Reliance measure<br>⚖️ Case: <i>Hadley v Baxendale</i> (Remoteness), <i>Victoria Laundry</i>" }
+            ]
+        },
+        {
+            title: "5. Contract law in Hong Kong (Fisher & Greenwood)",
+            chapters: [
+                { title: "Ch1: HK Exemption Clauses", details: "🔑 Terms: Reasonableness test in HK<br>📜 Stat: Control of Exemption Clauses Ordinance (Cap 71)<br>⚖️ Case: <i>Kensland Realty v Whale View Investment</i>" },
+                { title: "Ch2: Misrepresentation in HK", details: "🔑 Terms: Fraudulent, Negligent, Innocent<br>📜 Stat: Misrepresentation Ordinance (Cap 284)<br>⚖️ Case: <i>Edgington v Fitzmaurice</i>, <i>Derry v Peek</i>" }
+            ]
+        },
+        {
+            title: "6. Foundations of contract law in HK (Stephen Hall)",
+            chapters: [
+                { title: "Ch1: Privity of Contract in HK", details: "🔑 Terms: Privity rule exceptions, Third party rights<br>📜 Stat: Contracts (Rights of Third Parties) Ord (Cap 623)<br>⚖️ Case: <i>Dunlop Pneumatic Tyre v Selfridge</i>" },
+                { title: "Ch2: Illegality & Public Policy", details: "🔑 Terms: Restraint of trade, Illegal as formed/performed<br>⚖️ Case: <i>Patel v Mirza</i> (UK), applied in HK context" }
+            ]
+        },
+        {
+            title: "7. Tort law in Hong Kong (Rick Glofcheski)",
+            chapters: [
+                { title: "Ch1: Duty of Care (Negligence)", details: "🔑 Terms: Neighbour principle, Incremental approach<br>⚖️ Case: <i>Donoghue v Stevenson</i>, <i>Caparo v Dickman</i> (in HK)" },
+                { title: "Ch2: Breach & Standard of Care", details: "🔑 Terms: Reasonable man, Res ipsa loquitur<br>⚖️ Case: <i>Blyth v Birmingham Waterworks</i>, <i>Bolam</i> (Medical)" },
+                { title: "Ch3: Causation & Remoteness", details: "🔑 Terms: 'But for' test, Novus actus interveniens<br>⚖️ Case: <i>Barnett v Chelsea</i>, <i>The Wagon Mound (No 1)</i>" },
+                { title: "Ch4: Occupiers' & Vicarious Liability", details: "🔑 Terms: Common duty of care, Course of employment<br>📜 Stat: Occupiers Liability Ordinance (Cap 314)<br>⚖️ Case: <i>Ming An Insurance v Ritz-Carlton</i>" }
+            ]
+        },
+        {
+            title: "8. Law of the HK constitution (Chan & Lim)",
+            chapters: [
+                { title: "Ch1: Power of Interpretation", details: "🔑 Terms: NPCSC Interpretation, Final adjudication<br>📜 Stat: Basic Law Art 158<br>⚖️ Case: <i>Ng Ka Ling v Director of Immigration</i>, <i>Lau Kong Yung</i>" },
+                { title: "Ch2: Fundamental Rights (BORO)", details: "🔑 Terms: Proportionality test, Margin of discretion<br>📜 Stat: HK Bill of Rights Ordinance (Cap 383), BL Art 39<br>⚖️ Case: <i>Hysan Development v Town Planning Board</i>" },
+                { title: "Ch3: Right to Equality", details: "🔑 Terms: Anti-discrimination, Small House Policy<br>📜 Stat: Basic Law Art 25<br>⚖️ Case: <i>Kwok Cheuk Kin</i>, <i>W v Registrar of Marriages</i>" }
+            ]
+        },
+        {
+            title: "9. Administrative law in Hong Kong",
+            chapters: [
+                { title: "Ch1: Judicial Review Foundations & Illegality", details: "🔑 Terms: Leave requirement, Ultra vires, Improper purpose<br>⚖️ Case: <i>Padfield v Minister of Agriculture</i>" },
+                { title: "Ch2: Irrationality & Proportionality", details: "🔑 Terms: Wednesbury unreasonableness<br>⚖️ Case: <i>Associated Provincial Picture Houses v Wednesbury</i>, <i>GCHQ</i>" },
+                { title: "Ch3: Procedural Impropriety", details: "🔑 Terms: Natural justice, Audi alteram partem (Right to be heard), Rule against bias<br>⚖️ Case: <i>Ng Yuen Shiu</i> (Legitimate Expectation)" }
+            ]
+        }
+    ];
+
+    // 計時器邏輯
+    let timerInterval = null;
+    let totalElapsedTime = parseInt(localStorage.getItem('law_pro_time')) || 0; 
+    let startTime = null;
+    let isRunning = false;
+
+    document.addEventListener("DOMContentLoaded", () => {
+        renderBooks();
+        updateProgress();
+        updateTimerDisplay(totalElapsedTime);
+    });
+
+    function renderBooks() {
+        const container = document.getElementById('books-container');
+        booksData.forEach((book, bIdx) => {
+            const card = document.createElement('div');
+            card.className = 'book-card';
+            
+            const title = document.createElement('h3');
+            title.className = 'book-title';
+            title.innerText = book.title;
+            card.appendChild(title);
+            
+            const list = document.createElement('div');
+            list.className = 'chapter-list';
+            
+            book.chapters.forEach((chap, cIdx) => {
+                const key = `book_pro_${bIdx}_chap_${cIdx}`;
+                const isChecked = localStorage.getItem(key) === 'true';
+                
+                const item = document.createElement('div');
+                item.className = 'chapter-item';
+                
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.id = key;
+                checkbox.checked = isChecked;
+                checkbox.addEventListener('change', (e) => handleCheckChange(e, key));
+                
+                // Content Wrap (Title + Details)
+                const contentDiv = document.createElement('label');
+                contentDiv.className = 'chapter-content' + (isChecked ? ' checked' : '');
+                contentDiv.htmlFor = key;
+                
+                const chapTitle = document.createElement('div');
+                chapTitle.className = 'chapter-title';
+                chapTitle.innerText = chap.title;
+                
+                const chapDetails = document.createElement('div');
+                chapDetails.className = 'chapter-details';
+                chapDetails.innerHTML = chap.details; // 支援 HTML 標籤渲染 🔑 ⚖️ 📜
+                
+                contentDiv.appendChild(chapTitle);
+                contentDiv.appendChild(chapDetails);
+                
+                item.appendChild(checkbox);
+                item.appendChild(contentDiv);
+                list.appendChild(item);
+            });
+            
+            card.appendChild(list);
+            container.appendChild(card);
+        });
+    }
+
+    function handleCheckChange(e, key) {
+        localStorage.setItem(key, e.target.checked);
+        const contentDiv = e.target.nextElementSibling;
+        if(e.target.checked) {
+            contentDiv.classList.add('checked');
+        } else {
+            contentDiv.classList.remove('checked');
+        }
+        updateProgress();
+    }
+
+    function updateProgress() {
+        const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+        let checkedCount = 0;
+        checkboxes.forEach(cb => { if(cb.checked) checkedCount++; });
+        
+        const percentage = checkboxes.length ? Math.round((checkedCount / checkboxes.length) * 100) : 0;
+        document.getElementById('progress-bar').style.width = percentage + '%';
+        document.getElementById('progress-text').innerText = percentage + '%';
+    }
+
+    function toggleTimer() {
+        const btn = document.getElementById('startStopBtn');
+        if (!isRunning) {
+            startTime = Date.now() - totalElapsedTime;
+            timerInterval = setInterval(() => {
+                totalElapsedTime = Date.now() - startTime;
+                updateTimerDisplay(totalElapsedTime);
+                localStorage.setItem('law_pro_time', totalElapsedTime);
+            }, 1000);
+            btn.innerText = "暫停計時";
+            btn.style.backgroundColor = "#ef4444";
+            btn.style.color = "white";
+            isRunning = true;
+        } else {
+            clearInterval(timerInterval);
+            localStorage.setItem('law_pro_time', totalElapsedTime);
+            btn.innerText = "開始讀書";
+            btn.style.backgroundColor = "white";
+            btn.style.color = "var(--primary)";
+            isRunning = false;
+        }
+    }
+
+    function resetTimer() {
+        if(confirm("確定要重設讀書計時器嗎？")) {
+            clearInterval(timerInterval);
+            totalElapsedTime = 0;
+            localStorage.removeItem('law_pro_time');
+            updateTimerDisplay(0);
+            const btn = document.getElementById('startStopBtn');
+            btn.innerText = "開始讀書";
+            btn.style.backgroundColor = "white";
+            btn.style.color = "var(--primary)";
+            isRunning = false;
+        }
+    }
+
+    function updateTimerDisplay(ms) {
+        let totalSeconds = Math.floor(ms / 1000);
+        let hours = Math.floor(totalSeconds / 3600);
+        let minutes = Math.floor((totalSeconds % 3600) / 60);
+        let seconds = totalSeconds % 60;
+
+        hours = String(hours).padStart(2, '0');
+        minutes = String(minutes).padStart(2, '0');
+        seconds = String(seconds).padStart(2, '0');
+
+        document.getElementById('display').innerText = `${hours}:${minutes}:${seconds}`;
+    }
+</script>
+
+</body>
+</html>
