@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LexStrategy - 港英法律權威文獻60天通關系統</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 font-sans antialiased custom-scrollbar">
+
+    <div class="flex h-screen overflow-hidden">
+        <!-- SIDEBAR -->
+        <div class="w-80 bg-slate-950 flex flex-col border-r border-slate-800">
+            <!-- Brand Header -->
+            <div class="p-6 border-b border-slate-800">
+                <div class="flex items-center space-x-3">
+                    <div class="bg-indigo-600 text-white p-2 rounded-lg shadow-lg shadow-indigo-500/30">
+                        <i class="fa-solid fa-gavel text-xl"></i>
+                    </div>
+                    <div>
+                        <h1 class="font-bold text-lg leading-tight tracking-wide text-white">LexStrategy</h1>
+                        <p class="text-xs text-slate-400">港英法律文獻閱讀系統</p>
+                    </div>
+                </div>
+                
+                <!-- Progress Tracker -->
+                <div class="mt-6 bg-slate-900/50 border border-slate-800 p-4 rounded-xl">
+                    <div class="flex justify-between text-xs font-semibold text-slate-400 mb-2">
+                        <span>總進度追踪</span>
+                        <span id="progress-percent">0%</span>
+                    </div>
+                    <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
+                        <div id="progress-bar" class="bg-gradient-to-r from-indigo-500 to-emerald-500 h-2 rounded-full transition-all duration-500" style="width: 0%"></div>
+                    </div>
+                    <div class="flex justify-between text-[10px] text-slate-500 mt-2">
+                        <span id="progress-days">已完成 0 / 60 天</span>
+                        <span>剩餘時間: 2個月</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Navigation Phases -->
+            <div class="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar" id="phase-menu">
+                <!-- Dynamic injected via JS -->
+            </div>
+
+            <!-- Sidebar Footer Tools -->
+            <div class="p-4 border-t border-slate-800 bg-slate-950 space-y-2">
+                <button onclick="openModal('statute-modal')" class="w-full bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 py-2.5 px-4 rounded-lg text-xs font-semibold flex items-center justify-between transition-all">
+                    <span><i class="fa-solid fa-map-marked-alt mr-2 text-amber-500"></i>香港核心成文法地圖</span>
+                    <i class="fa-solid fa-chevron-right text-[10px]"></i>
+                </button>
+                <button onclick="openModal('irac-modal')" class="w-full bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 py-2.5 px-4 rounded-lg text-xs font-semibold flex items-center justify-between transition-all">
+                    <span><i class="fa-solid fa-cube mr-2 text-indigo-400"></i>標準 IRAC 輸出模板</span>
+                    <i class="fa-solid fa-chevron-right text-[10px]"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- MAIN CONTAINER -->
+        <div class="flex-1 flex flex-col bg-slate-900 overflow-hidden">
+            <!-- Top Navbar -->
+            <header class="h-16 border-b border-slate-800 bg-slate-950/40 backdrop-blur-md flex items-center justify-between px-8 z-10">
+                <div class="flex items-center space-x-4 w-1/3">
+                    <div class="relative w-full">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-500 text-sm"></i>
+                        <input type="text" id="search-input" oninput="handleSearch()" placeholder="搜索關鍵字、法規或地標案例（如: Sham Tsz Kit）..." class="w-full bg-slate-900 border border-slate-800 rounded-lg pl-9 pr-4 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors">
+                    </div>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <span id="current-phase-badge" class="px-3 py-1 bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 text-xs font-medium rounded-full"></span>
+                    <div class="h-4 w-px bg-slate-800"></div>
+                    <div class="text-xs text-slate-400"><i class="fa-regular fa-calendar mr-1.5"></i>戰略規劃週期：60 Days</div>
+                </div>
+            </header>
+
+            <!-- Dashboard Content Space -->
+            <main class="flex-1 overflow-y-auto p-8 custom-scrollbar bg-slate-900/60">
+                <!-- Overview Info Card (Visible initially or when showing phase) -->
+                <div id="phase-header-card" class="mb-6 p-6 bg-gradient-to-r from-slate-950 to-slate-900 border border-slate-800 rounded-xl shadow-xl">
+                    <!-- Dynamic Title inside -->
+                </div>
+
+                <!-- Days Container Matrix -->
+                <div class="space-y-4" id="days-matrix-container">
+                    <!-- Dynamic Days Cards Injected here -->
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- MODAL 1: STATUTE MAP -->
+    <div id="statute-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center hidden z-50 p-6">
+        <div class="bg-slate-950 border border-slate-800 w-full max-w-3xl rounded-xl shadow-2xl flex flex-col max-h-[85vh] transition-all transform scale-95 duration-300">
+            <div class="p-5 border-b border-slate-800 flex justify-between items-center bg-slate-900/50">
+                <h3 class="text-base font-bold text-white flex items-center"><i class="fa-solid fa-map-marked-alt text-amber-500 mr-2.5"></i>核心成文法地圖審查索引 (Statutory Map)</h3>
+                <button onclick="closeModal('statute-modal')" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <div class="p-6 overflow-y-auto custom-scrollbar space-y-4 text-xs">
+                <p class="text-slate-400 mb-2">在普通法體系中，成文法效力高於判例法。以下為本戰略規劃要求必背的核心本地條例清單：</p>
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="bg-slate-900 p-3.5 border border-slate-800 rounded-lg">
+                        <span class="font-bold text-amber-400 block mb-1">Cap. 1 釋義及通則條例</span>
+                        <p class="text-slate-400 text-[11px]">法律條文解釋與定義的起點架構。</p>
+                    </div>
+                    <div class="bg-slate-900 p-3.5 border border-slate-800 rounded-lg">
+                        <span class="font-bold text-amber-400 block mb-1">Cap. 21 誹謗條例</span>
+                        <p class="text-slate-400 text-[11px]">侵權法核心，劃定名譽保護與言論自由邊界。</p>
+                    </div>
+                    <div class="bg-slate-900 p-3.5 border border-slate-800 rounded-lg">
+                        <span class="font-bold text-indigo-400 block mb-1">Cap. 26 貨品售賣條例</span>
+                        <p class="text-slate-400 text-[11px]">合約私法基石，隱含條款及買賣雙方定型化責任。</p>
+                    </div>
+                    <div class="bg-slate-900 p-3.5 border border-slate-800 rounded-lg">
+                        <span class="font-bold text-indigo-400 block mb-1">Cap. 71 管制免責條款條例</span>
+                        <p class="text-slate-400 text-[11px]">商業免責條款的成文法限制，引入合理性測試。</p>
+                    </div>
+                    <div class="bg-slate-900 p-3.5 border border-slate-800 rounded-lg">
+                        <span class="font-bold text-indigo-400 block mb-1">Cap. 284 失實陳述條例</span>
+                        <p class="text-slate-400 text-[11px]">舉證責任倒置，提供近乎等同於欺詐的巨額賠償。</p>
+                    </div>
+                    <div class="bg-slate-900 p-3.5 border border-slate-800 rounded-lg">
+                        <span class="font-bold text-amber-400 block mb-1">Cap. 314 佔用人責任條例</span>
+                        <p class="text-slate-400 text-[11px]">區分合法訪客的一般謹慎責任與非法入侵者有限責任。</p>
+                    </div>
+                    <div class="bg-slate-900 p-3.5 border border-slate-800 rounded-lg">
+                        <span class="font-bold text-slate-400 block mb-1">Cap. 347 時效條例</span>
+                        <p class="text-slate-400 text-[11px]">合約與侵權訴訟時效起算點的致命法律界線限制。</p>
+                    </div>
+                    <div class="bg-slate-900 p-3.5 border border-slate-800 rounded-lg">
+                        <span class="font-bold text-emerald-400 block mb-1">Cap. 383 香港人權法案條例</span>
+                        <p class="text-slate-400 text-[11px]">將 ICCPR 引入本地之關鍵，公法違憲審查之重要依據。</p>
+                    </div>
+                    <div class="bg-slate-900 p-3.5 border border-slate-800 rounded-lg">
+                        <span class="font-bold text-indigo-400 block mb-1">Cap. 458 不合情理合約條例</span>
+                        <p class="text-slate-400 text-[11px]">針對不平等議價能力下強加條款的司法無效化利器。</p>
+                    </div>
+                    <div class="bg-slate-900 p-3.5 border border-slate-800 rounded-lg">
+                        <span class="font-bold text-indigo-400 block mb-1">Cap. 623 合約（第三者權利）條例</span>
+                        <p class="text-slate-400 text-[11px]">打破傳統相對性原則，允許明確指名第三方執行利益。</p>
+                    </div>
+                </div>
+            </div>
+            <div class="p-4 border-t border-slate-800 flex justify-end bg-slate-900/30">
+                <button onclick="closeModal('statute-modal')" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-1.5 px-4 rounded-lg text-xs transition-colors">確認並返回</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 2: IRAC TEMPLATE -->
+    <div id="irac-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center hidden z-50 p-6">
+        <div class="bg-slate-950 border border-slate-800 w-full max-w-2xl rounded-xl shadow-2xl flex flex-col max-h-[80vh]">
+            <div class="p-5 border-b border-slate-800 flex justify-between items-center bg-slate-900/50">
+                <h3 class="text-base font-bold text-white flex items-center"><i class="fa-solid fa-cube text-indigo-400 mr-2.5"></i>高級法律分析 IRAC 實戰模板</h3>
+                <button onclick="closeModal('irac-modal')" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <div class="p-6 overflow-y-auto custom-scrollbar text-xs space-y-4">
+                <div class="border-l-2 border-indigo-500 pl-3">
+                    <span class="font-bold text-indigo-400 block text-sm">I - Issue (爭議點)</span>
+                    <p class="text-slate-400 mt-1">精確提煉案情關鍵。例如：「政府在行使土地契約權力時，其行為究竟屬於私法合約範疇，還是屬於受行政法約束並可進行司法覆核的公法範疇？(*Sime Darby [2024]* )」</p>
+                </div>
+                <div class="border-l-2 border-emerald-500 pl-3">
+                    <span class="font-bold text-emerald-400 block text-sm">R - Rule (法律規則)</span>
+                    <p class="text-slate-400 mt-1">列出適用的普通法判例或成文法條文。如果是人權審查，在此處完整列出終審法院的 **四階段比例原則測試** 機制。</p>
+                </div>
+                <div class="border-l-2 border-amber-500 pl-3">
+                    <span class="font-bold text-amber-400 block text-sm">A - Application (法律應用分析)</span>
+                    <p class="text-slate-400 mt-1">將事實代入規則。深入剖析法庭在政策考量、商業常理 (*Commercial common sense*) 與字面意義之間的博弈，展示推導過程而非直接給出答案。</p>
+                </div>
+                <div class="border-l-2 border-rose-500 pl-3">
+                    <span class="font-bold text-rose-400 block text-sm">C - Conclusion (結論)</span>
+                    <p class="text-slate-400 mt-1">給出最終的法律判定，並特別指明法庭最終將批出何種 **裁量性救濟令**（如調卷令 Certiorari 或宣告 Declaration）。</p>
+                </div>
+            </div>
+            <div class="p-4 border-t border-slate-800 flex justify-end bg-slate-900/30">
+                <button onclick="closeModal('irac-modal')" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-1.5 px-4 rounded-lg text-xs transition-colors">關閉</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- DATA & ENGINE SCRIPT -->
+    <script>
+        // 1. Data Object definition mapping your strategic report
+        const dataset = {
+            phases: [
+                {
+                    id: 1,
+                    title: "第一階段：法律體系基礎與宏觀比較視角",
+                    range: "Day 1 - Day 10",
+                    summary: "本階段的整體內容是理解香港獨特的「一國兩制」普通法體系如何運作。你將閱讀香港從殖民地過渡至特別行政區的法律歷史、成文法與普通法的淵源、立法與司法機構的權力邊界，以及香港法院如何解釋法律。這為後續所有實體法打下地基。",
+                    days: [
+                        { day: 1, title: "宏觀視角與歷史軌跡", chapters: "Ip: Ch 1-2；Slapper: Ch 1-2", focus: "建立對法治（Rule of Law）與法律發展史的宏觀認知。對比英國的「不成文憲法」傳統與香港極度依賴成文《基本法》的單一制憲政架構之法理碰撞。掌握兩地在人權保障起源上的根本哲學差異。", irac: ["國會主權原則在英國的適用性限制", "基本法框架下香港憲政架構的成文特性", "1841-1997香港普通法引入的本土化適應"] },
+                        { day: 2, title: "法律淵源對比", chapters: "Ip: Ch 3-4；Slapper: Ch 3", focus: "理解普通法、衡平法與成文法在兩地法律體系中的層級關係。深入理解「遵循先例原則（Stare Decisis）」的運作機制。特別注意基本法第8條的憲法保留效力。", irac: ["縱向與橫向遵循先例的約束力界線", "基本法第8條對原有普通法與衡平法的保留效力", "成文法與普通法原則抵觸時的無效化規則"] },
+                        { day: 3, title: "立法程序與法院架構", chapters: "Ip: Ch 5；Slapper: Ch 4, 6", focus: "梳理香港立法會職能與法案通過程序，並對比英國兩院制議會。繪製兩地法院層級，重點關注香港終審法院（CFA）如何取代英國樞密院成為最終上訴機構。", irac: ["終審法院管轄權邊界及其最終裁決權", "香港立法會與英國兩院制立法程序之本質差異", "司法常務官與各級法院的司法行政流轉"] },
+                        { day: 4, title: "司法獨立與法官角色", chapters: "Ip: Ch 6；Slapper: Ch 9-10", focus: "記錄香港設立「海外非常任法官（Non-Permanent Judges）」制度的歷史背景與憲制意義。探討司法推理（Judicial Reasoning）背後的政策考量與政治張力，分析法官雙重角色。", irac: ["海外非常任法官對司法中立信心的維繫作用", "法官作為法律創造者與解釋者的界線", "司法推理中公共政策考量（Policy Considerations）的合法邊界"] },
+                        { day: 5, title: "法律解釋技術 (極度重要)", chapters: "Ip: Ch 7", focus: "專攻成文法解釋。熟練掌握四大傳統解釋原則：字面規則、黃金規則、破壞規則以及現代的「目的導向解釋法（Purposive Approach）」。記錄香港法院如何在判例中全面擁抱目的導向解釋法。", irac: ["字面規則（Literal Rule）引發荒謬結果時的修正機制", "目的導向解釋法（Purposive Approach）在終審法院的實踐步驟", "利用立法會內務文件（Travaux Préparatoires）探究立法原意的合規性"] },
+                        { day: 6, title: "法律專業與資金援助", chapters: "Ip: Ch 8；Slapper: Ch 13-14", focus: "對比中英律師雙軌制分工：事務律師（Solicitor）與大律師（Barrister）。探討較高級法院出庭發言權改革，及法律援助資格審查、條件式收費制度在港推行限制的影響。", irac: ["事務律師較高級法院出庭發言權（Higher Rights of Audience）的門檻", "法律援助經濟審查與案情審查（Means Test & Merits Test）", "英國條件式收費（No win no fee）在香港商業倫理下的排斥原因"] },
+                        { day: 7, title: "民事訴訟與替代爭議解決", chapters: "Ip: Ch 9；Slapper: Ch 5, 12", focus: "梳理民事訴訟生命週期（Writ, Pleadings, Discovery, Trial）。深入探討替代爭議解決機制（ADR），重點筆記仲裁（Arbitration）與調解（Mediation）的本質區別與跨國執行力。", irac: ["紐約公約（New York Convention）下仲裁裁決的跨國執行優勢", "文件披露令（Discovery）階段的法律專業特權（Legal Professional Privilege）", "民事司法改革（CJR）中關於調解作為必要程序的法律懲罰機制"] },
+                        { day: 8, title: "刑事司法體系", chapters: "Ip: Ch 10；Slapper: Ch 1-2, 11", focus: "分析檢控權獨立性及律政司依據的《檢控守則》（證據充分性與公眾利益測試）。對比中英陪審團制度，詳細記錄香港為何僅在特定嚴重案件中保留陪審團制度。", irac: ["律政司獨立檢控權的憲法保障與司法覆核限制", "陪審團作為事實裁決者（Finder of Fact）的民主象徵與裁斷不可推翻性", "刑事案件中超越合理疑點（Beyond Reasonable Doubt）的舉證標準定義"] },
+                        { day: 9, title: "特殊法院與外部影響", chapters: "Slapper: Ch 8, 15", focus: "了解英國家事法庭糾問式或調解優先特徵。建立比較法視野，探討《歐洲人權公約》（ECHR）及國際公約（如 ICCPR）如何透過本地立法轉化為具約束力的法律。", irac: ["家事訴訟中兒童利益最大化原則對對抗制（Adversarial System）的修正", "國際公約在香港本地轉化（Incorporation）的憲法機制", "歐盟法歷史判例對英國普通法財產與商業法理的深遠存留效力"] },
+                        { day: 10, title: "第一階段總結與筆記體系整合", chapters: "第一階段總結", focus: "知識輸出與檢驗日。建立思維導圖，精確口述：普通法衡平法衝突原則、遵循先例在CFA與上訴庭的運作差異、目的導向解釋法的操作步驟。為進入艱澀公法打下地基。", irac: ["普通法與衡平法衝突時衡平法優先原則的歷史演進", "終審法院對自身先例約束力的彈性背離機制", "自我評估：基礎法學語言與術語的閉卷檢索流暢度"] }
+                    ]
+                },
+                {
+                    id: 2,
+                    title: "第二階段：香港公法體系——憲政架構與行政權力的約束",
+                    range: "Day 11 - Day 25",
+                    summary: "這十五天專注於香港的公法。你將學習《基本法》如何分配權力並保障人權，以及市民如何透過行政法（特別是司法覆核）來挑戰政府決定的合法性、程序公平性與合理性。近年來公法的核心發展在於法庭對基本人權施加限制時所採用的「比例原則」測試。",
+                    days: [
+                        { day: 11, title: "一國兩制與高度自治", chapters: "Chan & Lim: Part I (Ch 1-2)", focus: "記錄《中英聯合聲明》性質。剖析「一國兩制」下中央與特區關係。釐清高度自治權源於中央依法授予，而非剩餘權力（Residual power），界定涉及中央事權與自治範圍的邊界。", irac: ["基本法作為特別行政區「小憲法」的授權法理本質", "防務與外交事務之國家主權行為（Acts of State）在本地法院的可訴性", "基本法第158條人大常委會法律解釋權與本地司法權的交匯軌跡"] },
+                        { day: 12, title: "國家安全與外部事務", chapters: "Chan & Lim: Part I (Ch 3-5)", focus: "分析香港作為獨立關稅區的依據。仔細閱讀並摘錄《香港國安法》（NSL）實施後的深遠影響，重點關注司法管轄權、特別保釋門檻（充足理由測試）及陪審團適用規定。", irac: ["香港國安法第42條對傳統普通法假定保釋權利（Presumption of Bail）的修正", "國安案件中指定法官（Designated Judges）名單的憲法合規性", "國安法條文與基本法第二章及人權法案條例的優先順序博弈"] },
+                        { day: 13, title: "政治體制與權力分立", chapters: "Chan & Lim: Part II (Ch 6-9)", focus: "梳理行政長官雙重身分及立法會職能。聚焦法理上爭論不休的「三權分立（Separation of Powers）」與「行政主導（Executive-led）」理論，記錄法院如何實質應用制衡原則。", irac: ["司法覆核對立法程序中立法會內部事務（Internal Proceedings）的干預限制", "行政主導原則與司法獨立審查權力的憲制平衡點", "行政長官行政指令的法律地位與合法性審查"] },
+                        { day: 14, title: "經濟與社會政策", chapters: "Chan & Lim: Part III & IV", focus: "梳理基本法中關於維持資本主義、獨立財政、低稅制與保護私有財產權的政策性條文。深入探討這些政策性方針在法庭上是否具備可訴性（Justiciability）。", irac: ["基本法第107條「量入為出」原則是否構成可由法庭強制執行的法律義務", "政策性條文（Policy Directives）與實體人權條款的可訴性技術差異", "政府宏觀預算編列受司法質疑時的政治問題迴避原則"] },
+                        { day: 15, title: "人權保障框架 (地標案例日)", chapters: "Chan & Lim: Part V (Basic Law, HKBORO)", focus: "重中之重。釐清基本法第39條引入ICCPR機制與BORO地位。精研地標案例 Sham Tsz Kit v SJ [2023] HKCFA 28，理解政府未提供替代法律框架承認同性伴侶權利如何違反BORO第14條隱私權，及暫緩宣告的憲制影響。", irac: ["Sham Tsz Kit 案中關於替代承認框架（Alternative Framework）的積極憲法義務推導", "基本法第37條結婚權與BORO第14條隱私權的層級互補分析", "暫緩執行宣告（Suspended Declaration of Invalidity）對行政機關的憲制震懾效力"] },
+                        { day: 16, title: "核心政治與公民權利", chapters: "Chan & Lim: Part V (Right to Life, Fair Trial, Expression)", focus: "研讀生命權與公平審訊權的保障標準。深入探討表達自由與集會自由的法定限制框架。精確記錄法庭審查警方基於「公共秩序」或「國家安全」限制集會時採用的審查密度。", irac: ["警方簽發「反對通知書」時的事實基礎與合比例性審查", "刑事訴訟中缺席審判或特別保護證人機制對公平審訊權（Fair Trial）的限制邊界", "政治性言論與煽動性言論在表達自由保障下的分水嶺"] },
+                        { day: 17, title: "平等權與財產權", chapters: "Chan & Lim: Part V (Privacy, Equality, Property)", focus: "關注平等權與非歧視法理。記錄反歧視條例與基本法平等條文互動（如公務員配偶福利案）。理解基本法第40條丁屋政策的特殊憲制保護，以及執法截取通訊時的隱私排除證據規則。", irac: ["丁屋政策（Small House Policy）作為「合法傳統權益」對抗平等權挑戰的憲法抗辯", "同性配偶公務員福利及合併評稅案中的合理差別待遇（Justified Differential Treatment）測試", "截取通訊及監察條例下非法取證的司法排除法則（Exclusionary Rule）"] },
+                        { day: 18, title: "行政法導論與非司法控制", chapters: "Jhaveri: Ch 1-2", focus: "進入行政法。理解行政法根本目的為防止行政濫權、確保程序公平合法。詳細記錄申訴專員公署處理行政失當的權限，以及廉政公署在維持公營機構廉潔中的法定角色。", irac: ["申訴專員公署（Ombudsman）對行政失當（Maladministration）的調查權與法庭審判權的職能互補", "廉政公署（ICAC）法定調查權力對個人權利限制的法律正當性", "非司法控制機制在行政救濟體系中的成本與效率優勢"] },
+                        { day: 19, title: "覆核門檻與訴訟資格", chapters: "Jhaveri: Ch 3-4", focus: "專注司法覆核啟動門檻。核心為公私法劃分原則。精研 Sime Darby Motor Services v Director of Lands [2024] 3 HKC 678 案，釐清政府行使土地契約權利時的公私法行為界線。分析起訴資格演進。", irac: ["Sime Darby 案中政府作為私法地主（Private Landlord）與公權力機關的雙重角色辨析", "訴訟資格（Sufficient Interest Test）中「公共利益訴訟人（Public Interest Litigant）」的准入门檻", "程序排他性原則（Procedural Exclusivity）對濫用覆核程序的防範"] },
+                        { day: 20, title: "覆核限制與救濟途徑", chapters: "Jhaveri: Ch 5-6", focus: "探討法庭權力界線。界定哪些行政決定（如純粹宏觀政策或涉及國防外交特權）不受司法覆核管轄。整理公法救濟清單，理解救濟的「裁量性質」——可基於延誤等理由拒絕批出。", irac: ["調卷令（Certiorari）與履行令（Mandamus）在糾正行政違法中的組合應用", "公法救濟的裁量性（Discretionary Nature）與原告「不乾淨的手（Unclean Hands）」之抗辯影響", "商業決定涉及行政元素時的可訴性（Justiciability）崩塌界線"] },
+                        { day: 21, title: "程序公平原則", chapters: "Jhaveri: Ch 7", focus: "探討行政法三大基礎之首「程序公平」。記錄兩大支柱：獲得公平聽證的權利（分析口頭聆訊與給予理由的要求）以及反偏見規則（掌握判斷表面偏見的現代客觀旁觀者測試標準）。", irac: ["理性且知情的旁觀者（Fair-minded and Informed Observer）偏見測試操作", "行政機關拒絕給予決策理由（Duty to Give Reasons）何時構成程序不公", "重大利益受損時自動享有口頭聆訊（Oral Hearing）的法理門檻"] },
+                        { day: 22, title: "違法性與不合理性", chapters: "Jhaveri: Ch 8-9", focus: "研讀「違法性」（越權、錯誤考慮無關因素）與「不合理性」（Wednesbury 測試）。必須精研最新案例 HKSAR v Chow Hang Tung [2024] 3 HKC 44，理解被告如何在刑事抗辯中對警方限制決定提出公法合法性挑戰。", irac: ["Chow Hang Tung 案中刑事審訊中對行政決定進行間接挑戰（Collateral Challenge）的合法性", "Wednesbury 不合理性測試中「極端到理性決策者絕不可能做出」的嚴苛證明門檻", "行政機關錯誤適用法律（Error of Law）導致決策越權（Ultra Vires）的判定"] },
+                        { day: 23, title: "合理期望原則", chapters: "Jhaveri: Ch 10", focus: "學習合理期望（Legitimate Expectations）概念。區分程序性期望與實體性期望。重點筆記法庭在決定是否強制政府兌現承諾時，如何平衡保護個人信賴利益與政府為公共利益改變政策的自由。", irac: ["政府明確且無條件的承諾（Clear and Unambiguous Representation）之認定基準", "實體性合理期望（Substantive Legitimate Expectation）被政策變更凌駕時的利益權衡測試", "市民因信賴利益改變處境（Detrimental Reliance）是否為索償的絕對前提"] },
+                        { day: 24, title: "比例原則與權利審查 (核心考點日)", chapters: "Jhaveri: Ch 11", focus: "行政法的心臟。涉及基本人權侵犯時，法院採用極嚴格的「比例原則」。必須倒背如流四階段測試：合法目的、合理關聯、最低損害（最低必要手段）、社會與個人利益之平衡。這是憲行混合題唯一框架。", irac: ["四階段比例原則（Four-stage Proportionality Test）中「最低損害（Minimal Impairment）」的司法審查密度", "利害權衡（Striking a Fair Balance）階段社會大眾利益與個體權利的價值量化", "法院對行政機關專業政策判斷的司法留白（Margin of Discretion/Deference）"] },
+                        { day: 25, title: "第二階段總結與公法判例矩陣建構", chapters: "第二階段總結", focus: "公法收尾。撰寫針對行政決定合法性的標準 IRAC 分析模板，確保邏輯閉環：公法管轄 -> 起訴資格 -> 程序公平 -> 實體越權/不合理 -> 比例原則 -> 裁量性救濟。完成公法流水線建成。", irac: ["公法案件解題流水線的邏輯斷點查核", "地標判例矩陣（Sham Tsz Kit, Sime Darby, Chow Hang Tung）的跨領域提煉", "自我評估：能否在3分鐘內默寫出比例原則四階段的精確法律英文表述"] }
+                    ]
+                },
+                {
+                    id: 3,
+                    title: "第三階段：合約法核心教義與兩地普通法比較",
+                    range: "Day 26 - Day 45",
+                    summary: "這二十天進入龐談的私法領域。你將以《Contract law in Hong Kong》為主幹，結合《Foundations of contract law in Hong Kong》探索香港本土特色，並將英國教材作為判例對照。內容涵蓋合約的生與死：從要約、代價、條款解釋，到失實陳述、違約與損害賠償。",
+                    days: [
+                        { day: 26, title: "合約本質與客觀原則", chapters: "Fisher: Ch 1-2; Hall: Ch 1", focus: "合約法開篇，確立「客觀測試標準（Objective principle）」。法庭以理性旁觀者根據言行推斷。梳理香港合約法多重淵源，記錄英國高階歷史判例的強大指導性及成文消費者保護法的介入。", irac: ["理性旁觀者測試（Objective Test）排除內心真實意圖的司法實踐", "英國最高法院判例在1997年後對香港私法的非約束性說服力（Persuasive Authority）級別", "契約自由原則（Freedom of Contract）受本地消費者成文法限縮的軌跡"] },
+                        { day: 27, title: "協議的形成：要約", chapters: "Fisher: Ch 3; Hall: Ch 3", focus: "拆解要約（Offer）。核心在於精確區分「要約」與「要約邀請（Invitation to treat）」（如櫥窗展示、廣告、招標）。梳理要約終止條件，包括撤回（接受前傳達）、拒絕、反要約及時間流逝。", irac: ["商店櫥窗商品展示與標價在普通法下的法律定位", "反要約（Counter-offer）消滅原要約與單純詢問條款（Request for Information）的技術區分", "要約撤回（Revocation）必須實際送達（Communication）的渠道限制"] },
+                        { day: 28, title: "協議的形成：接受與確定性", chapters: "Fisher: Ch 3; Hall: Ch 4", focus: "探討接受規則。接受必須絕對且無條件。詳細記錄郵政規則歷史背景及在現代電郵即時通訊下的適用局限。解析格式之戰（Battle of forms）的「最後一槍原則」及模糊條款無效性。", irac: ["郵政規則（Postal Rule）在即時電子通訊（Instantaneous Communication）下的失效判定", "格式之戰中「最後一槍（Last Shot Rule）」對雙方標準條款效力的排定", "「同意去同意（Agreement to Agree）」導致合約因不確定性（Uncertainty）無效的防範"] },
+                        { day: 29, title: "代價 (Consideration) 的本質與充分性", chapters: "Fisher: Ch 4; Hall: Ch 6", focus: "代價是普通法獨有靈魂：必須具法律價值（Sufficient）但無需等價（Adequate）。突破履行既有義務不構成代價的傳統原則，精研 Williams v Roffey Bros 案之「實際利益」代價。結合香港本土案例 Cheng Mei Ling v Lam Siu Chor Sharen [2020]。", irac: ["Williams v Roffey Bros 案中「實際利益（Practical Benefit）」對既有合約變更的救濟", "履行公共法律義務（Pre-existing Public Duty）能否轉化為有效代價", "Cheng Mei Ling 案中香港法院對債務妥協變更時實際利益的本土認定標準"] },
+                        { day: 30, title: "允諾不容反悔 (Promissory Estoppel)", chapters: "Fisher: Ch 4; Hall: Ch 8", focus: "衡平法彌補代價僵化之概念。當一方作出不執行嚴格法律權利之承諾，另一方信賴並改變自身處境致反悔不公時，法庭阻止反悔。記錄其要件。研讀 Hall 書中關於「香港不容反悔」的本土融合法理。", irac: ["允諾不容反悔原則作為「盾牌而非寶劍（Shield, not a Sword）」的訴訟限制", "承諾方反悔構成「不公平（Inequitable）」的實意舉證責任", "香港法庭將本案禁反言與財產禁反言（Proprietary Estoppel）進行一體化融合的嘗試"] },
+                        { day: 31, title: "意圖與形式要求", chapters: "Fisher: Ch 5, 7; Hall: Ch 2, 5", focus: "區分商業協議（強烈推定有法律意圖）與家庭/社交協議（推定無法律意圖）的舉證責任。形式上土地交易屬書面絕對例外。精研終審法院地標判例 Ng Yuk Pui Kelly v Ng Lai Ling Winnie (2021) 24 HKCFAR 401。", irac: ["Ng Yuk Pui Kelly 案中衡平法下「部分履行（Part Performance）」原則挽救無書面土地合約的運作", "商業談判中註明「受合約約束（Subject to Contract）」的法律推定推翻難度", "家庭成員間商業交易時法律關係意圖（Intent to Create Legal Relations）的舉證反轉"] },
+                        { day: 32, title: "明示條款與分類", chapters: "Fisher: Ch 8; Hall: Ch 9, 11", focus: "區分合約前陳述（引發失實陳述索償）與合約條款（引發違約索償）。理解口頭證據規則及其例外。精確掌握條件條款、保證條款與無名條款（Innominate Terms）的劃分邏輯與解約權判定。", irac: ["口頭證據規則（Parol Evidence Rule）在整體合約推定下的例外抗辯", "香港法院劃分條件（Condition）與保證（Warranty）時對合同文本用詞的過濾機制", "Hong Kong Fir 案中無名條款對受害方是否被「實質剝奪整個合約利益」的後果測試"] },
+                        { day: 33, title: "隱含條款與合約解釋 (地標案例日)", chapters: "Fisher: Ch 8; Hall: Ch 10, 12", focus: "法律方向在於法庭如何從「字面解釋」轉向「語境解釋」。必須精讀終審法院指標案例 Eminent Investments (Asia Pacific) Ltd v DIO Corp (2020) 23 HKCFAR 487，掌握商業背景與常理（Commercial common sense）的考量。整理事實隱含條款的雙重嚴格測試。", irac: ["Eminent Investments 案中商業常理（Commercial Common Sense）凌駕字面字典意義的極限", "「旁觀者測試（Officious Bystander Test）」推斷事實隱含條款的操作", "商業效用測試（Business Efficacy Test）中合同若無該條款則無法運作的必然性論證"] },
+                        { day: 34, title: "免責條款 (Exclusion Clauses) 的控制", chapters: "Fisher: Ch 8; Hall: Ch 13", focus: "學習普通法與成文法對免責條款的雙重夾擊。普通法下記錄納入方法及「針對擬定者解釋原則」。成文法必須精讀香港《管制免責條款條例》（Cap 71）與《不合情理合約條例》（Cap 458）的合理性測試。", irac: ["Cap 71 條例下免除人身傷害疏忽責任的絕對無效性", "針對擬定者解釋規則（Contra Proferentem Rule）在商業主體議價能力對等時的弱化", "Cap 458 不合情理測試對弱勢消費者合約條款的司法強制剔除權"] },
+                        { day: 35, title: "失實陳述 (Misrepresentation)", chapters: "Fisher: Ch 9; Hall: Ch 14", focus: "瑕疵因素章節。虛假事實陳述誘使簽約。釐清事實與意見的要件。區分欺詐性、疏忽性與無辜性。深入分析香港《失實陳述條例》（Cap 284）舉證責任倒置與巨額損害賠償計算。記錄撤銷合約喪失條件。", irac: ["Cap 284 條例第2(1)條項下疏忽性失實陳述之「擬制欺詐（Fiction of Fraud）」賠償效力", "專業意見（Expert Opinion）在特定商業背景下被判定為事實陳述的法理轉化", "撤銷合約權利因時間流逝（Lapse of Time）或第三方取得權益而喪失（Bars to Rescission）的防禦"] },
+                        { day: 36, title: "錯誤 (Mistake)", chapters: "Fisher: Ch 10; Hall: Ch 15", focus: "合約法最抽象理論。梳理共同錯誤、相互錯誤與單方錯誤（特別是騙子冒充身份的 Identity Mistake）的極高認定門檻。普通法為護無辜第三方極不願判定無效。記錄文件糾正及非其所簽古老抗辯適用界線。", irac: ["單方身份錯誤（Mistake as to Identity）在面對面交易與遠程書面交易下的效力分水嶺", "文件糾正（Rectification）衡平法救濟對雙方真實共同意圖（Common Intention）的證明要求", "非其所簽（Non Est Factum）抗辯中「簽署文本與主觀理解存在根本或激進差異」的嚴苛限制"] },
+                        { day: 37, title: "脅迫與不當影響 (Duress & Undue Influence)", chapters: "Fisher: Ch 11-12; Hall: Ch 16", focus: "分析合約意願受壓迫情況。普通法關注「經濟脅迫（Economic Duress）」最新發展（區分合法商業壓力與非法經濟威脅）。衡平法不當影響掌握實際與「推定」運作機制，特別記錄銀行免受抗辯的獨立法律意見防禦機制。", irac: ["經濟脅迫中「缺乏其他合理替代選擇（No Reasonable Alternative）」的被迫性測試", "推定不當影響（Presumed Undue Influence）中信賴關係與引發質疑交易（Transaction calling for explanation）的結合", "皇家蘇格蘭銀行訴伊特里奇案（RBS v Etridge）所確立的銀行通知與獨立法律意見之合規清洗程序"] },
+                        { day: 38, title: "違法與公共政策 (Illegality)", chapters: "Fisher: Ch 13; Hall: Ch 17", focus: "探討法定違法與公共政策違法後果。重點筆記「貿易限制條款（Restraint of Trade）」（離職限制等）。這類條款表面無效，除非僱主能證合理保護合法商業利益。記錄法庭如何運用藍筆分割原則挽救有效部分。", irac: ["離職後禁止競爭條款（Non-compete Clause）在時間與地域範圍上的「合理性」幾何邊界", "最高法院 Patel v Mirza 案所確立的「政策因素平衡測試」在香港法院的跟隨與本土修剪", "分割原則（Severance / Blue Pencil Test）在不改變剩餘合約本質前提下的操作限制"] },
+                        { day: 39, title: "合約的受挫失效 (Frustration)", chapters: "Fisher: Ch 14; Hall: Ch 19", focus: "分析不可預見外在事件致合同履行不可之受挫失效嚴格門檻。履行昂貴或困難不構成受挫；必須是性質發生根本改變。將其與商業常見「不可抗力條款（Force Majeure Clauses）」對比，理解風險自行分配原則。", irac: ["履行成本激增或商業市場崩潰不構成合約受挫失效（Self-induced Frustration Exclusion）的法理", "因法律變更導致合約目的徹底非法（Supervening Illegality）的自動終止效力", "成文法《法律改革（雜項規定）條例》對受挫失效後已付預付款（Pre-payments）的調整分配機制"] },
+                        { day: 40, title: "違約解除 (Discharge by Breach)", chapters: "Fisher: Ch 14-15; Hall: Ch 20", focus: "分析預先違約（Anticipatory breach）與毀約性違約（Repudiatory breach）的無辜方選擇權（Election）：接受毀約終止合約，或確認合約繼續。深入探討債務索償與損害賠償在法律性質與減損義務上的根本區別。", irac: ["無辜方面對毀約性違約時確認合同繼續（Affirmation）的合理利益（Legitimate Interest）限制測試", "預先違約發生後訴訟時效起算點的戰略定位", "債務索償（Action for a Agreed Sum）不受損害賠償減損義務（Mitigation）約束的實務優勢"] },
+                        { day: 41, title: "違約救濟：損害賠償與違約金 (核心考點日)", chapters: "Fisher: Ch 15; Hall: Ch 21", focus: "最具實務價值重頭戲。精研賠償遙距性（Hadley v Baxendale 雙軌規則）。最具顛覆性考點為違約金與懲罰性條款區分，精研香港地標案 Law Ting Pong Secondary School v Chen Wai Wah [2021] 5 HKC 452。記錄保護非違約方合法利益新測試。", irac: ["Law Ting Pong Secondary School 案中關於「合法商业利益（Legitimate Business Interest）」新測試對懲罰性條款（Penalty Clause）判定的顛覆", "Hadley v Baxendale 規則中第一軌道（自然發生）與第二軌道（特殊告知遠期損失）的證明阻斷", "協商損害賠償（Negotiating Damages / Wrotham Park Damages）在無法證明實際利潤損失時的虛擬租金計算法"] },
+                        { day: 42, title: "合約相對性與第三方權利 (Privity)", chapters: "Fisher: Ch 16; Hall: Ch 18", focus: "傳統相對性原則給現代商業（保險、建築分包）帶來不便。詳細記錄香港如何透過成文法進行改革：精讀《合約（第三者權利）條例》（Cap 623）核心機制，理解第三方直接執行的條件及缔约雙方的退出機制。", irac: ["Cap 623 條例下第三者身份必須在合同中以明示名稱或描述（Class Description）被特定化", "締約雙方透過明示排除條款（Opt-out Clause）徹底剝奪第三者法定起訴權的條款設計", "在第三方依賴權利後，原締約雙方變更或撤銷合約（Variation & Rescission）的權利凍結點"] },
+                        { day: 43, title: "合約法總結與案例矩陣 (I)", chapters: "第三階段總結與法例回顧", focus: "進入消化龐大模塊緩衝期。建構合約法 IRAC 檢驗清單第一部分：Formation (要約、接受、代價、意圖) -> Terms (明示、隱含、解釋、免責)。確保每個節點皆有香港專屬成文法和地標案例支撐。", irac: ["合約成立與內容確定的前置 IRAC 邏輯鏈防漏點檢", "香港本地合約法條例（Cap 26, Cap 71, Cap 458）的快速法庭辯護引用語境", "自我評估：能否針對複雜商業爭議迅速區分是 Term 違約還是 Representation 失實陳述"] },
+                        { day: 44, title: "合約法總結與案例矩陣 (II)", chapters: "第三階段總結與法例回顧", focus: "建構合約法檢驗清單第二部分：Vitiating Factors (失實陳述、錯誤、脅迫、不當影響、違法) -> Discharge (受挫、違約解除) -> Remedies (賠償遙距性、Law Ting Pong 違約金測試)。確保邏輯閉環。", irac: ["合約瑕疵與終止救濟階段的 IRAC 高級綜合辯護模板", "將地標案例（Eminent Investments, Law Ting Pong）寫入解題步驟的標準格式", "自我評估：在雙方均有違約行為的複雜商戰事實中，如何理清起訴與反訴的損害賠償抵銷機制"] },
+                        { day: 45, title: "合約法總結與案例矩陣 (III)", chapters: "第三階段總結與法例回顧", focus: "封裝合約法兩地普通法比較矩陣。系統化梳理香港法庭在 Williams v Roffey 實際利益本地延伸、Eminent 語境解釋、及 Cap 623 第三者權利適用上與英國現行最新實踐的微調差異，完成私法核心的掌握。", irac: ["英港合約普通法演進的分水嶺技術分析報告撰寫", "閉卷模擬：在缺乏直接香港判例時，如何引用英國最新最高法院判例說服香港高等法院法官", "合約法知識庫的最終邏輯查驗與索引歸檔"] }
+                    ]
+                },
+                {
+                    id: 4,
+                    title: "第四階段：香港侵權法——責任、因果與救濟",
+                    range: "Day 46 - Day 54",
+                    summary: "這九天專專注於侵權法（Tort Law）。你將學習法庭如何在受害者的悲劇與社會/企業的經濟負擔之間劃下界線。核心集中於「疏忽（Negligence）」，這不僅是意外傷害索償的基礎，更是整個醫療、建築與專業服務領域的法律依歸。",
+                    days: [
+                        { day: 46, title: "疏忽的構成與謹慎責任 (Duty of Care)", chapters: "Glofcheski: Ch 1-2, 5", focus: "侵權法心臟。仔細研讀第5章，記錄傳統 Caparo 三階段測試（可預見性、鄰近關係、公平合理）。理解法庭對純粹經濟損失（Pure Economic Loss）和不作為（Omissions）抱持極端保守態度的政策考量。", irac: ["Caparo 三階段測試在新型侵權事實（Novel Situations）中的漸進式應用", "純粹經濟損失（Pure Economic Loss）除 Hedley Byrne 專業失當信賴外的原則性排除", "公共機關（Public Authorities）因不作為導致公眾損害時的謹慎責任豁免防線"] },
+                        { day: 47, title: "違反責任與因果關係 (Breach & Causation)", chapters: "Glofcheski: Ch 3-4", focus: "記錄判斷違反責任的客觀標準。精研「事實自證（Res ipsa loquitur）」法則，精讀終審法院地標案例 Yu Yu Kai v Chan Chi Keung 中 Ribeiro PJ 的 Clarification：事實自證乃常理推論而非舉證倒置。精研But-for測試與法律因果介入事件。", irac: ["Yu Yu Kai 案中事實自證（Res Ipsa Loquitur）的三大前提要件代入與表證建立", "客觀理性人測試（Reasonable Man Test）中考慮專業技能標準（Bolam Test）的醫療侵權修正", "多重客觀原因導致損害時「實質貢獻測試（Material Contribution Test）」對 But-for 的替代"] },
+                        { day: 48, title: "抗辯與僱主責任 (Employer's Liability)", chapters: "Glofcheski: Ch 6-7", focus: "聚焦工作場所受傷救濟。梳理被告兩大抗辯：共同過失（損害打折原則）與自願承擔風險。核心為僱主對員工的不可反過失責任（Non-delegable duty）。精研 Poon Chau Nam v Yim Siu Cheung 案事實大於形式的僱員認定測試。", irac: ["Poon Chau Nam 案中關於「僱員」與「獨立承包人」劃分的多元司法要素綜合測試（Integration & Economic Reality Test）", "僱主不可反過失責任（Non-delegable Duty）在分包工程環境下的法律強制延伸", "共同過失（Contributory Negligence）中受害者自身疏忽比例的法庭裁量扣減計算法"] },
+                        { day: 49, title: "替代責任與多重侵權人 (Vicarious Liability)", chapters: "Glofcheski: Ch 11-12", focus: "替代責任讓僱主為員工受僱期間的侵權買單（深口袋與風險分配政策）。記錄判斷僱傭關係與「是否在受僱過程中（Course of employment）」的最新法理測試（如擅自繞道或報復行為）。梳理多重侵權人責任分擔機制。", irac: ["員工故意犯罪或報復行為與受僱工作之「緊密聯繫測試（Close Connection Test）」", "「擅自繞道（Frolic of his own）」阻斷替代責任的時空邊界劃定", "民事訴訟（分擔）條例下多個疏忽被告間的責任貢獻份額（Contribution）評估"] },
+                        { day: 50, title: "佔用人責任與法定責任", chapters: "Glofcheski: Ch 8-9", focus: "土地處所安全責任。比較香港《佔用人責任條例》（Cap 314）與普通法異同。理解佔用人對合法訪客的一般謹慎責任，及對非法入侵者的有限度責任。理解「違反法定責任（Breach of Statutory Duty）」作為獨立民事訴因的意圖證明。", irac: ["Cap 314 條例下獨立承辦商疏忽導致訪客受傷時佔用人（Occupier）的免責清洗要件", "非法入侵者（Trespassers）獲得人道注意（Common Humanity）的最低度謹慎保護線", "工業安全法例（如工廠及工業經營條例）之刑事處罰條文轉化為個人民事訴因的司法默示推導"] },
+                        { day: 51, title: "侵犯人身與間接干預", chapters: "Glofcheski: Ch 15-16, 18", focus: "侵犯人身領域（不求證明實際損害 Actionable per se）。記錄襲擊（Assault）、毆打（Battery）與非法禁錮（False Imprisonment）的構成要素與自衛抗辯。特別關注香港對於是否發展獨立「騷擾（Harassment）」侵權的探討及網絡起底實務。", irac: ["非法禁錮中「缺乏合理逃生途徑（No Reasonable Means of Escape）」的物理與心理判定", "襲擊（Assault）中被告必須具備「即時實施暴力之表面能力（Apparent Ability）」的測試", "香港普通法透過判例逐步演進獨立「騷擾侵權訴因」以應對現代網絡犯罪的必要性分析"] },
+                        { day: 52, title: "財產干預與嚴格責任", chapters: "Glofcheski: Ch 19-21", focus: "處理土地與相鄰關係糾紛。區分私人滋擾（噪音、漏水等不合理干預）與公共滋擾（影響公眾利益）。深入探討古老 Rylands v Fletcher 規則（危險物外洩嚴格責任），分析該原則在現代香港高密度大廈都市環境下受到的極大限縮與縮水。", irac: ["私人滋擾（Private Nuisance）中土地佔有權（Possessory Interest）作為起訴資格的絕對前提", "Rylands v Fletcher 嚴格責任中「非自然土地使用（Non-natural User）」在高樓多層大廈中的崩塌", "公共滋擾（Public Nuisance）中個人原告證明自己遭受「特殊損害（Special Damage）」的舉證難度"] },
+                        { day: 53, title: "誹謗與損害賠償計算 (Defamation & Damages)", chapters: "Glofcheski: Ch 22, 10", focus: "名譽保護與金錢賠償計算。梳理誹謗構成三要素：誹謗性、指涉原告、向第三方發布。精研三大核心抗辯：真實性、公允評論與特權。精讀第10章關於人身傷害損害賠償計算原則（痛苦與失去生活樂趣、失去未來收入乘數法）。", irac: ["誹謗訴訟中「公允評論 / 誠實評論（Honest Comment）」抗辯受惡意（Malice）擊穿的法理", "絕對特權（Absolute Privilege）與合格特權（Qualified Privilege）在報業新聞報導中的防禦線", "人身傷害索償中「乘數與乘數因子（Multiplier-Multiplicand Approach）」計算未來收入損失的精算操作"] },
+                        { day: 54, title: "第四階段總結與侵權法邏輯樹", chapters: "第四階段總結", focus: "侵權法收尾。將零散訴因整合成一張實用的邏輯決策樹。設定複雜意外場景（地盤機器故障受傷+途人拍片誹謗）。確保能在 Duty, Breach, Causation 與 Defences 之間建立嚴密的普通法邏輯鏈條，應對實務案件。", irac: ["侵權法複合事實綜合解題決策樹的斷點分流技術", "各侵權訴因（疏忽、佔用人責任、違反法定責任、誹謗）的訴訟請求書（Statement of Claim）串聯", "自我評估：能否在5分鐘內畫出包含所有疏忽抗辯要件的完整思維導圖"] }
+                    ]
+                },
+                {
+                    id: 5,
+                    title: "第五階段：全體系融會貫通與跨學科法理反思",
+                    range: "Day 55 - Day 60",
+                    summary: "經過五十四天的高強度專題閱讀，最後的六天是知識昇華的關鍵期。真實的法律實務從不按教科書劃分章節，糾紛往往牽涉多個法律領域的交錯。你將打破學科壁壘，建立香港普通法的全景式理解。",
+                    days: [
+                        { day: 55, title: "私法領域的交叉——合約與侵權的競合", chapters: "綜合模塊突破", focus: "探討「並行責任（Concurrent liability）」。專業人士（醫生、工程師、會計師）疏忽同時觸犯合約隱含謹慎條款與侵權謹慎責任。分析原告起訴時的戰略選擇：比較訴訟時效起算點及損害賠償遙距性測試的致命差異。", irac: ["Henderson v Merrett Syndicates 案並行責任教義在香港高院的全面貫徹", "時效條例下合約違約（發生時起算）與侵權損害（現形時起算）對原告生死的決定性影響", "Hadley 規則與 Caparo/The Wagon Mound 規則對遠期經濟損失賠償範圍的寬嚴對比"] },
+                        { day: 56, title: "公法對私法的滲透與影響", chapters: "公私法壁壘打破", focus: "結合憲法、行政法與私法，反思公權力如何影響私人交易。探討行政決定程序公平性如何影響政府招標與廢標（司法覆核挑戰）。法理探討基本法下人權保障是否會產生對私人企業的「水平效力（Horizontal effect）」。", irac: ["政府招標行為（Public Procurement）受司法覆核挑戰時對中標私法合約效力的阻斷機制", "基本法第39條及人權法案條例對私法主體間民事裁判的間接水平效力（Indirect Horizontal Effect）", "雇傭關係中私人雇主解雇權力受憲法言論自由原則修正的辯論演進"] },
+                        { day: 57, title: "成文法地圖的最終審核", chapters: "Cap. 系列地毯式複查", focus: "全盤地毯式檢視，確保熟知涵蓋合約、侵權、行政與憲法的香港核心法例清單。必須清楚記得 Cap 1、Cap 21、Cap 26、Cap 71、Cap 284、Cap 314、Cap 347、Cap 383、Cap 458 與 Cap 623 的核心條文位置與限制。", irac: ["法庭辯護中成文法優先原則（Statutory Supremacy）的精確條文切入點選擇", "各條例排除條款與強制適用條款（Mandatory Provisions）的衝突裁決對照", "自我評估：隨機抽查3部條例，能否在10秒內說出其精確規範對象與關鍵條文編號"] },
+                        { day: 58, title: "英國判例的適用性與香港本土化審查", chapters: "英港法理分水嶺系統總結", focus: "系統性總結香港終審法院明確拒絕跟隨、或已修改英國最高法院/樞密院判例的核心領域（如違約金測試、部分履行原則、純粹經濟損失等）。記錄法庭如何基於本地高密度環境或基本法憲政框架發展本土特色普通法。", irac: ["香港終審法院在 Law Ting Pong 案中對英國 Cavity 案違約金測試的本土化修正論證", "高密度都市環境下香港法院對私人滋擾與謹慎責任鄰近關係的獨特擴張", "基本法第8條作為香港普通法走獨立發展路線（Independent Common Law Path）的憲法授權"] },
+                        { day: 59, title: "跨學科模擬案例演練與 IRAC 輸出", chapters: "實戰演練與極限輸出", focus: "實戰演練日。利用九本文獻課後題或高校期末試題進行跨學科複合案例書面作答。面對長篇事實背景，嚴格遵循 IRAC 邏輯鏈條，訓練大腦提取跨學科知識的速度，仔細展示推導步驟與抗辯理由，展現縝密思維。", irac: ["跨學科複合案例中隱藏爭議點（Hidden Issues）的雷達式檢索與排序", "高壓環境下 IRAC 書面表達的精鍊度與法庭答辯狀式語言風格控制", "自我評估：在45分鐘內完成一篇包含合約違約、疏忽侵權與司法覆核競合的完美法律意見書"] },
+                        { day: 60, title: "全局回顧與強大知識庫封存", chapters: "戰略終點與未來兵器庫", focus: "最後一天，通覽兩個月來建立的所有思維導圖、案例簡報（Case Briefs）與成文法清單。標註出模擬演練中薄弱環節作為未來重點補救指引。高度結構化、融合英港法理精髓的筆記將正式封存為日後作戰的強大知識武器。", irac: ["60天高強度閱讀筆記體系的數字化/結構化索引最終校對", "針對實務或高等學術研究的知識庫模塊化封存與隨身調閱設計", "最終檢視：恭喜完成，你已具備在基本法與雙軌普通法體系下進行高強度法律作戰的完整知識圖譜"] }
+                    ]
+                }
+            ]
+        };
+
+        // 2. Initialize application and render sidebar phases
+        let currentPhaseId = 1;
+
+        function initApp() {
+            const menuContainer = document.getElementById('phase-menu');
+            menuContainer.innerHTML = '';
+            
+            dataset.phases.forEach(phase => {
+                const isActive = phase.id === currentPhaseId;
+                const item = document.createElement('div');
+                item.className = `p-3.5 rounded-xl cursor-pointer transition-all border ${isActive ? 'bg-indigo-600/20 border-indigo-500 text-white shadow-lg' : 'bg-slate-900/40 border-slate-800 text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'}`;
+                item.onclick = () => selectPhase(phase.id);
+                item.innerHTML = `
+                    <div class="flex justify-between items-center mb-1">
+                        <span class="text-[10px] font-bold uppercase tracking-wider ${isActive ? 'text-indigo-400' : 'text-slate-500'}">${phase.range}</span>
+                        <span class="text-[10px] bg-slate-800 text-slate-300 px-1.5 py-0.5 rounded border border-slate-700 font-mono">${phase.days.length} Days</span>
+                    </div>
+                    <h4 class="text-xs font-bold leading-snug">${phase.title}</h4>
+                `;
+                menuContainer.appendChild(item);
+            });
+
+            // Update baseline stats
+            updateProgressBar();
+            renderCurrentPhase();
+        }
+
+        function selectPhase(id) {
+            currentPhaseId = id;
+            initApp();
+            // Scroll main contents to top
+            document.querySelector('main').scrollTop = 0;
+        }
+
+        // 3. Render the days matrix for the active phase
+        function renderCurrentPhase() {
+            const phase = dataset.phases.find(p => p.id === currentPhaseId);
+            document.getElementById('current-phase-badge').innerText = phase.range;
+
+            // Render Header Card
+            const headerCard = document.getElementById('phase-header-card');
+            headerCard.innerHTML = `
+                <span class="text-xs font-bold text-indigo-400 tracking-widest uppercase block mb-1">PHASE ARCHITECTURE . 0${phase.id}</span>
+                <h2 class="text-xl font-black text-white mb-2 tracking-wide">${phase.title}</h2>
+                <p class="text-xs text-slate-400 leading-relaxed max-w-4xl">${phase.summary}</p>
+            `;
+
+            // Render Days Matrix
+            renderDays(phase.days);
+        }
+
+        function renderDays(daysList) {
+            const container = document.getElementById('days-matrix-container');
+            container.innerHTML = '';
+
+            if(daysList.length === 0) {
+                container.innerHTML = `
+                    <div class="p-12 text-center text-slate-500 text-xs border border-dashed border-slate-800 rounded-xl">
+                        <i class="fa-solid fa-folder-open text-2xl mb-2 text-slate-600"></i><br>未找到匹配的高強度閱讀規劃章節
+                    </div>
+                `;
+                return;
+            }
+
+            daysList.forEach(dayData => {
+                const storageKey = `day-check-${dayData.day}`;
+                const isChecked = localStorage.getItem(storageKey) === 'true';
+                const noteKey = `day-note-${dayData.day}`;
+                const savedNote = localStorage.getItem(noteKey) || '';
+
+                const card = document.createElement('div');
+                card.className = `p-5 rounded-xl border transition-all ${isChecked ? 'bg-slate-950/60 border-emerald-950 shadow-inner' : 'bg-slate-950 border-slate-800 shadow-md hover:border-slate-700'}`;
+                
+                // Build IRAC chips
+                let iracChips = '';
+                dayData.irac.forEach(item => {
+                    iracChips += `<span class="px-2 py-0.5 bg-slate-900 border border-slate-800 rounded text-slate-400 text-[11px]"><i class="fa-solid fa-crosshairs text-indigo-400 text-[9px] mr-1"></i>${item}</span>`;
+                });
+
+                card.innerHTML = `
+                    <div class="flex items-start justify-between space-x-4">
+                        <!-- Left Checkbox Area -->
+                        <div class="pt-0.5">
+                            <input type="checkbox" id="${storageKey}" onchange="toggleDay(${dayData.day})" ${isChecked ? 'checked' : ''} class="w-4 h-4 rounded text-emerald-600 bg-slate-900 border-slate-700 focus:ring-emerald-500 focus:ring-offset-slate-900 cursor-pointer">
+                        </div>
+                        
+                        <!-- Middle Main Area -->
+                        <div class="flex-1 space-y-2.5">
+                            <div class="flex items-center space-x-2.5 flex-wrap">
+                                <span class="bg-indigo-600 text-white font-mono text-[10px] font-bold px-2 py-0.5 rounded-md tracking-wider">DAY ${dayData.day.toString().padStart(2, '0')}</span>
+                                <h3 class="text-sm font-bold text-white tracking-wide">${dayData.title}</h3>
+                                <span class="text-xs text-amber-500 font-medium bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full"><i class="fa-solid fa-book-bookmark text-[10px] mr-1"></i>${dayData.chapters}</span>
+                            </div>
+                            
+                            <p class="text-xs text-slate-300 leading-relaxed bg-slate-900/40 p-3 rounded-lg border border-slate-900">${dayData.focus}</p>
+                            
+                            <!-- Issue-oriented Chips -->
+                            <div class="space-y-1">
+                                <span class="text-[10px] text-slate-500 font-bold tracking-wider uppercase block">核心爭議點點檢 (Issue-oriented Matrix):</span>
+                                <div class="flex flex-wrap gap-1.5 pt-0.5">
+                                    ${iracChips}
+                                </div>
+                            </div>
+
+                            <!-- Expandable Note Area -->
+                            <div class="pt-2">
+                                <details class="group">
+                                    <summary class="text-[11px] font-semibold text-slate-400 hover:text-slate-200 cursor-pointer transition-colors list-none flex items-center space-x-1">
+                                        <i class="fa-solid fa-chevron-right text-[9px] transform group-open:rotate-90 transition-transform"></i>
+                                        <span><i class="fa-solid fa-pen-to-square mr-1"></i>點擊展開本日高強度戰略筆記與地標判例 Brief 區</span>
+                                    </summary>
+                                    <div class="mt-2 pt-1">
+                                        <textarea id="${noteKey}" oninput="saveNote(${dayData.day})" placeholder="輸入此章節的 IRAC 分析結果、抗辯要點、或兩地普通法本土化差異總結..." class="w-full h-24 bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200 focus:outline-none focus:border-emerald-600 transition-colors custom-scrollbar">${savedNote}</textarea>
+                                    </div>
+                                </details>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        // 4. Progress calculation and LocalStorage bindings
+        function toggleDay(dayNum) {
+            const checkbox = document.getElementById(`day-check-${dayNum}`);
+            localStorage.setItem(`day-check-${dayNum}`, checkbox.checked);
+            updateProgressBar();
+            
+            // Subtle visual feedback via re-rendering active context
+            const phase = dataset.phases.find(p => p.id === currentPhaseId);
+            renderDays(phase.days.filter(d => {
+                const val = document.getElementById('search-input').value.toLowerCase();
+                return d.title.toLowerCase().includes(val) || d.focus.toLowerCase().includes(val) || d.chapters.toLowerCase().includes(val);
+            }));
+        }
+
+        function saveNote(dayNum) {
+            const textarea = document.getElementById(`day-note-${dayNum}`);
+            localStorage.setItem(`day-note-${dayNum}`, textarea.value);
+        }
+
+        function updateProgressBar() {
+            let totalDays = 60;
+            let completedCount = 0;
+            for(let i = 1; i <= totalDays; i++) {
+                if(localStorage.getItem(`day-check-${i}`) === 'true') {
+                    completedCount++;
+                }
+            }
+
+            const percent = Math.round((completedCount / totalDays) * 100);
+            document.getElementById('progress-percent').innerText = `${percent}%`;
+            document.getElementById('progress-bar').style.width = `${percent}%`;
+            document.getElementById('progress-days').innerText = `已完成 ${completedCount} / 60 天`;
+        }
+
+        // 5. Global Real-time Search Engine
+        function handleSearch() {
+            const keyword = document.getElementById('search-input').value.toLowerCase();
+            const phase = dataset.phases.find(p => p.id === currentPhaseId);
+            
+            // Filter list based on search criteria
+            const filtered = phase.days.filter(day => {
+                return day.title.toLowerCase().includes(keyword) || 
+                       day.focus.toLowerCase().includes(keyword) || 
+                       day.chapters.toLowerCase().includes(keyword) ||
+                       day.irac.some(i => i.toLowerCase().includes(keyword));
+            });
+
+            renderDays(filtered);
+        }
+
+        // 6. Modal Window UI Interactions
+        function openModal(modalId) {
+            const modal = document.getElementById(modalId);
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.firstElementChild.classList.remove('scale-95', 'opacity-0');
+            }, 10);
+        }
+
+        function closeModal(modalId) {
+            const modal = document.getElementById(modalId);
+            modal.firstElementChild.classList.add('scale-95', 'opacity-0');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 150);
+        }
+
+        // Kickstart app framework
+        window.onload = initApp;
+    </script>
+</body>
+</html>
