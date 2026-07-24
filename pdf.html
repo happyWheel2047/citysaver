@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Browser-Native PDF Manager Pro</title>
+    <!-- Load Libraries via CDN -->
+    <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://unpkg.com/tesseract.js@4/dist/tesseract.min.js"></script>
+    
+    <style>
+        body { font-family: system-ui, -apple-system, sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; background: #f3f4f6; color: #1f2937; line-height: 1.5; }
+        .card { background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); margin-bottom: 1.5rem; border-top: 4px solid #3b82f6; }
+        h1 { color: #111827; text-align: center; margin-bottom: 2rem; }
+        h2 { color: #1f2937; margin-top: 0; font-size: 1.25rem; border-bottom: 1px solid #e5e7eb; padding-bottom: 0.5rem; }
+        .controls { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-top: 10px; }
+        button { background: #3b82f6; color: white; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-weight: 500; transition: background 0.2s; font-size: 0.9rem; }
+        button:hover { background: #2563eb; }
+        button.danger { background: #ef4444; }
+        button.danger:hover { background: #dc2626; }
+        button.success { background: #10b981; }
+        button.success:hover { background: #059669; }
+        input[type="file"], input[type="number"], input[type="text"] { padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; width: 100%; box-sizing: border-box; background: #f9fafb; }
+        #status { padding: 15px; border-radius: 6px; background: #1f2937; color: #10b981; font-family: monospace; min-height: 40px; white-space: pre-wrap; word-break: break-word; }
+        .input-group { margin-bottom: 1rem; display: flex; flex-direction: column; gap: 5px; }
+        .section-label { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280; font-weight: bold; margin-top: 1.5rem; margin-bottom: 0.5rem; }
+    </style>
+</head>
+<body>
+
+    <h1>Browser-Native PDF Manager</h1>
+    
+    <div class="card">
+        <h2>1. Select File(s)</h2>
+        <input type="file" id="fileInput" accept="application/pdf" multiple>
+        <p><small style="color: #6b7280;">Select multiple files only if you plan to Merge them.</small></p>
+    </div>
+
+    <div class="card">
+        <h2>2. Operations</h2>
+
+        <div class="section-label">Whole Document Actions</div>
+        <div class="controls">
+            <button class="success" onclick="mergePDFs()">Merge Selected PDFs</button>
+            <button onclick="splitPDF()">Split (Save All Pages)</button>
+            <button onclick="addBlankPage()">Add Blank Page to End</button>
+        </div>
+
+        <div class="section-label">Target Page Actions</div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+            <div class="input-group">
+                <label for="pageNum"><strong>Target Page Number:</strong></label>
+                <input type="number" id="pageNum" min="1" value="1">
+            </div>
+            <div class="input-group">
+                <label for="watermarkText"><strong>Watermark Text:</strong></label>
+                <input type="text" id="watermarkText" placeholder="e.g., CONFIDENTIAL">
+            </div>
+        </div>
+        <div class="controls">
+            <button onclick="rotatePage()">Rotate Page 90°</button>
+            <button onclick="addWatermark()">Apply Watermark to Page</button>
+            <button onclick="exportPNG()">Export Page as PNG</button>
+            <button onclick="runOCR()">OCR Page (Extract Text)</button>
+            <button class="danger" onclick="deletePage()">Delete Page</button>
+        </div>
+
+        <div class="section-label">Range Actions</div>
+        <div class="input-group">
+            <label for="pageRange"><strong>Extract Page Range (Start-End):</strong></label>
+            <input type="text" id="pageRange" placeholder="e.g., 2-5">
+        </div>
+        <div class="controls" style="grid-template-columns: 1fr;">
+            <button onclick="extractRange()">Extract Range to New PDF</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>Output / Status Log</h2>
+        <div id="status">Ready. Select a file to begin...</div>
+    </div>
+
+    <script>
+        // Initialize pdf.js worker
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        
+        // Destructure necessary tools from PDFLib
+        const { PDFDocument, degrees, rgb, StandardFonts } = PDFLib;
+
+        // --- Helper Functions ---
+        function log(msg) {
+            document.getElementById('status').innerText = msg;
+        }
+
+        async function getFiles() {
+            const files = document.getElementById('fileInput').files;
+            if (files.length === 0) throw new Error("Please select at least one PDF file first.");
+            return files;
+        }
+
+        function downloadBytes(bytes, filename, type = "application/pdf") {
+            const blob = new Blob([bytes], { type });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        async function getPageIndex() {
+            const pageInput = parseInt(document.getElementById('pageNum').value);
+            if (isNaN(pageInput) || pageInput < 1) throw new Error("Please enter a valid page number (1 or greater).");
+            return pageInput - 1; // Convert to 0-indexed for libraries
+        }
+
+        // --- Whole Document Functions ---
+
+        async function mergePDFs() {
+            try {
+                const files = await getFiles();
+                if (files.length < 2) throw new Error("Please select at least 2 files to merge.");
+                log("Merging PDFs...");
+                
+                const mergedPdf = await PDFDocument.create();
+                for (let file of files) {
+                    const arrayBuffer = await file.arrayBuffer();
+                    const pdf = await PDFDocument.load(arrayBuffer);
+                    const copiedPages = await mergedPdf.copyPages(pdf, pdf.getPageIndices());
+                    copiedPages.forEach((page) => mergedPdf.addPage(page));
+                }
+                
+                downloadBytes(await mergedPdf.save(), "merged_document.pdf");
+                log("Merge complete! File downloaded.");
+            } catch (e) { log(`Error: ${e.message}`); }
+        }
+
+        async function splitPDF() {
+            try {
+                const files = await getFiles();
+                const arrayBuffer = await files[0].arrayBuffer();
+                const pdf = await PDFDocument.load(arrayBuffer);
+                const pageCount = pdf.getPageCount();
+                
+                log(`Splitting document into ${pageCount} separate files...`);
+                
+                for (let i = 0; i < pageCount; i++) {
+                    const newPdf = await PDFDocument.create();
+                    const [copiedPage] = await newPdf.copyPages(pdf, [i]);
+                    newPdf.addPage(copiedPage);
+                    downloadBytes(await newPdf.save(), `page_${i + 1}.pdf`);
+                }
+                log("Split complete! Files downloaded.");
+            } catch (e) { log(`Error: ${e.message}`); }
+        }
+
+        async function addBlankPage() {
+            try {
+                const files = await getFiles();
+                const arrayBuffer = await files[0].arrayBuffer();
+                const pdf = await PDFDocument.load(arrayBuffer);
+                
+                pdf.addPage();
+                
+                downloadBytes(await pdf.save(), "document_with_blank_page.pdf");
+                log("Blank page added to the end. File downloaded.");
+            } catch (e) { log(`Error: ${e.message}`); }
+        }
+
+        // --- Range Functions ---
+
+        async function extractRange() {
+            try {
+                const files = await getFiles();
+                const rangeStr = document.getElementById('pageRange').value;
+                const parts = rangeStr.split('-');
+                if (parts.length !== 2) throw new Error("Invalid range format. Use format like '2-5'.");
+                
+                const start = parseInt(parts[0].trim());
+                const end = parseInt(parts[1].trim());
+                
+                if (isNaN(start) || isNaN(end) || start > end || start < 1) {
+                    throw new Error("Invalid range numbers.");
+                }
+
+                log(`Extracting pages ${start} to ${end}...`);
+                const arrayBuffer = await files[0].arrayBuffer();
+                const pdf = await PDFDocument.load(arrayBuffer);
+                
+                if (end > pdf.getPageCount()) throw new Error(`Document only has ${pdf.getPageCount()} pages.`);
+
+                const newPdf = await PDFDocument.create();
+                
+                // Create array of 0-indexed page numbers to extract
+                const pageIndices = [];
+                for (let i = start - 1; i < end; i++) pageIndices.push(i);
+                
+                const copiedPages = await newPdf.copyPages(pdf, pageIndices);
+                copiedPages.forEach((page) => newPdf.addPage(page));
+                
+                downloadBytes(await newPdf.save(), `extracted_pages_${start}_to_${end}.pdf`);
+                log(`Pages ${start}-${end} successfully extracted!`);
+            } catch (e) { log(`Error: ${e.message}`); }
+        }
+
+        // --- Target Page Functions ---
+
+        async function deletePage() {
+            try {
+                const files = await getFiles();
+                const pageIndex = await getPageIndex();
+                const arrayBuffer = await files[0].arrayBuffer();
+                const pdf = await PDFDocument.load(arrayBuffer);
+                
+                if (pageIndex >= pdf.getPageCount()) throw new Error("Page number exceeds document length.");
+                
+                pdf.removePage(pageIndex);
+                downloadBytes(await pdf.save(), "deleted_page.pdf");
+                log(`Page ${pageIndex + 1} deleted. File downloaded.`);
+            } catch (e) { log(`Error: ${e.message}`); }
+        }
+
+        async function rotatePage() {
+            try {
+                const files = await getFiles();
+                const pageIndex = await getPageIndex();
+                const arrayBuffer = await files[0].arrayBuffer();
+                const pdf = await PDFDocument.load(arrayBuffer);
+                
+                if (pageIndex >= pdf.getPageCount()) throw new Error("Page number exceeds document length.");
+                
+                const page = pdf.getPage(pageIndex);
+                const currentRotation = page.getRotation().angle;
+                page.setRotation(degrees(currentRotation + 90)); // Rotate 90 degrees clockwise
+                
+                downloadBytes(await pdf.save(), "rotated_page.pdf");
+                log(`Page ${pageIndex + 1} rotated 90 degrees. File downloaded.`);
+            } catch (e) { log(`Error: ${e.message}`); }
+        }
+
+        async function addWatermark() {
+            try {
+                const files = await getFiles();
+                const pageIndex = await getPageIndex();
+                const text = document.getElementById('watermarkText').value || "CONFIDENTIAL";
+                
+                const arrayBuffer = await files[0].arrayBuffer();
+                const pdf = await PDFDocument.load(arrayBuffer);
+                
+                if (pageIndex >= pdf.getPageCount()) throw new Error("Page number exceeds document length.");
+                
+                const page = pdf.getPage(pageIndex);
+                const { width, height } = page.getSize();
+                const font = await pdf.embedFont(StandardFonts.HelveticaBold);
+                
+                // Draw text diagonally across the center
+                page.drawText(text, {
+                    x: width / 4,
+                    y: height / 3,
+                    size: 50,
+                    font: font,
+                    color: rgb(0.95, 0.1, 0.1), // Semi-transparent Red
+                    opacity: 0.4,
+                    rotate: degrees(45),
+                });
+                
+                downloadBytes(await pdf.save(), "watermarked.pdf");
+                log(`Watermark applied to page ${pageIndex + 1}. File downloaded.`);
+            } catch (e) { log(`Error: ${e.message}`); }
+        }
+
+        // --- Render, PNG, and OCR Functions ---
+
+        async function renderPageToCanvas(file, pageIndex) {
+            const arrayBuffer = await file.arrayBuffer();
+            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+            
+            if (pageIndex >= pdf.numPages) throw new Error("Page number exceeds document length.");
+            
+            const page = await pdf.getPage(pageIndex + 1); 
+            const viewport = page.getViewport({ scale: 2.0 }); 
+            
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            canvas.height = viewport.height;
+            canvas.width = viewport.width;
+            
+            await page.render({ canvasContext: context, viewport: viewport }).promise;
+            return canvas;
+        }
+
+        async function exportPNG() {
+            try {
+                const files = await getFiles();
+                const pageIndex = await getPageIndex();
+                log(`Rendering page ${pageIndex + 1} to PNG...`);
+                
+                const canvas = await renderPageToCanvas(files[0], pageIndex);
+                
+                canvas.toBlob((blob) => {
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `page_${pageIndex + 1}.png`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                    log(`Page ${pageIndex + 1} exported as PNG!`);
+                }, 'image/png');
+                
+            } catch (e) { log(`Error: ${e.message}`); }
+        }
+
+        async function runOCR() {
+            try {
+                const files = await getFiles();
+                const pageIndex = await getPageIndex();
+                log(`Preparing page ${pageIndex + 1} for OCR. Loading Tesseract engine...`);
+                
+                const canvas = await renderPageToCanvas(files[0], pageIndex);
+                const imageData = canvas.toDataURL("image/png");
+                
+                const result = await Tesseract.recognize(imageData, 'eng', {
+                    logger: m => {
+                        if (m.status === 'recognizing text') {
+                            log(`OCR Progress: ${Math.round(m.progress * 100)}%`);
+                        }
+                    }
+                });
+                
+                log("OCR Complete!\n\n--- Extracted Text ---\n\n" + result.data.text);
+            } catch (e) { log(`Error: ${e.message}`); }
+        }
+    </script>
+</body>
+</html>
