@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Browser-Native PDF Manager Pro</title>
+    
+    <!-- External Libraries -->
+    <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://unpkg.com/tesseract.js@4/dist/tesseract.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        :root {
+            --bg-color: #f3f4f6;
+            --sidebar-bg: #1e293b;
+            --sidebar-hover: #334155;
+            --text-main: #334155;
+            --text-light: #64748b;
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --danger: #ef4444;
+            --success: #10b981;
+            --card-bg: #ffffff;
+            --border: #e2e8f0;
+        }
+
+        body { margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; background-color: var(--bg-color); color: var(--text-main); display: flex; height: 100vh; overflow: hidden; }
+
+        /* Sidebar Navigation */
+        .sidebar { width: 260px; background-color: var(--sidebar-bg); color: white; display: flex; flex-direction: column; box-shadow: 2px 0 10px rgba(0,0,0,0.1); z-index: 10; }
+        .sidebar-header { padding: 20px; font-size: 1.2rem; font-weight: bold; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .nav-menu { list-style: none; padding: 0; margin: 0; }
+        .nav-item { padding: 15px 20px; cursor: pointer; display: flex; align-items: center; gap: 12px; transition: background 0.2s; color: #cbd5e1; }
+        .nav-item:hover, .nav-item.active { background-color: var(--sidebar-hover); color: white; border-left: 4px solid var(--primary); }
+
+        /* Main Content Area */
+        .main-content { flex: 1; overflow-y: auto; padding: 40px; position: relative; }
+        .dashboard { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 24px; }
+        
+        .module-card { background: var(--card-bg); border-radius: 8px; padding: 24px; cursor: pointer; border: 1px solid var(--border); border-top: 4px solid var(--primary); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); transition: all 0.2s ease; display: flex; flex-direction: column; gap: 12px; }
+        .module-card:hover { transform: translateY(-4px); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
+        .module-icon { font-size: 2rem; color: var(--primary); margin-bottom: 8px; }
+        .module-title { font-size: 1.2rem; font-weight: 600; margin: 0; }
+        .module-desc { font-size: 0.9rem; color: var(--text-light); margin: 0; line-height: 1.4; }
+
+        /* Workspace (Fixed: Removed display: none;) */
+        .workspace { background: var(--card-bg); border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); max-width: 900px; margin: 0 auto; border: 1px solid var(--border); }
+        .workspace-header { padding: 20px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+        .ws-header-left { display: flex; align-items: center; gap: 15px; }
+        .back-btn { background: none; border: none; font-size: 1.2rem; color: var(--text-light); cursor: pointer; padding: 5px; }
+        .back-btn:hover { color: var(--primary); }
+        .workspace-body { padding: 24px; display: flex; flex-direction: column; gap: 24px; }
+
+        /* Inputs & Controls */
+        .form-section { background: #f8fafc; padding: 20px; border-radius: 6px; border: 1px solid var(--border); }
+        .form-section h3 { margin-top: 0; font-size: 1rem; color: var(--text-main); margin-bottom: 15px; }
+        .input-group { display: flex; flex-direction: column; gap: 8px; margin-bottom: 15px; }
+        .input-group:last-child { margin-bottom: 0; }
+        label { font-weight: 500; font-size: 0.9rem; }
+        input[type="file"], input[type="number"], input[type="text"], select { padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-family: inherit; width: 100%; box-sizing: border-box; background: white;}
+        
+        .btn { background: var(--primary); color: white; border: none; padding: 12px 24px; border-radius: 6px; font-size: 1rem; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; transition: background 0.2s; }
+        .btn:hover { background: var(--primary-hover); }
+        .btn:disabled { background: #94a3b8; cursor: not-allowed; }
+        .btn-danger { background: var(--danger); }
+        .btn-danger:hover { background: #dc2626; }
+        
+        /* Visual Merge Grid */
+        .thumbnail-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 16px; margin-top: 15px; min-height: 150px; }
+        .page-card { position: relative; background: white; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px; display: flex; flex-direction: column; align-items: center; cursor: grab; transition: box-shadow 0.2s, transform 0.1s; user-select: none; }
+        .page-card:active { cursor: grabbing; transform: scale(0.98); }
+        .page-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); border-color: var(--primary); }
+        .page-card img { width: 100%; max-height: 160px; object-fit: contain; border: 1px solid #e2e8f0; border-radius: 4px; background: #f8fafc; }
+        .page-card .page-label { font-size: 0.75rem; color: var(--text-light); margin-top: 8px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; }
+        .page-card .delete-btn { position: absolute; top: -8px; right: -8px; background: var(--danger); color: white; border: none; border-radius: 50%; width: 24px; height: 24px; font-size: 0.7rem; cursor: pointer; display: none; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+        .page-card:hover .delete-btn { display: flex; }
+        .page-card.drag-over { border: 2px dashed var(--primary); background: #eff6ff; }
+        .page-card.placeholder img { opacity: 0; }
+        
+        /* Loading Spinner */
+        .loader { border: 3px solid #f3f3f3; border-top: 3px solid var(--primary); border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; position: absolute; top: 40%; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        .logger { background: #1e293b; color: #10b981; padding: 15px; border-radius: 6px; font-family: ui-monospace, monospace; font-size: 0.85rem; min-height: 60px; max-height: 200px; overflow-y: auto; white-space: pre-wrap; margin-top: 10px; }
+        
+        /* Unified Hidden Class */
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <i class="fa-solid fa-file-pdf"></i> PDF Manager
+        </div>
+        <ul class="nav-menu">
+            <li class="nav-item active" onclick="showDashboard()">
+                <i class="fa-solid fa-border-all"></i> Dashboard
+            </li>
+        </ul>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        
+        <!-- View 1: Dashboard Grid -->
+        <div id="dashboardView" class="dashboard">
+            
+            <div class="module-card" style="border-top-color: #3b82f6" onclick="openWorkspace('merge')">
+                <i class="fa-solid fa-object-group module-icon" style="color: #3b82f6"></i>
+                <h3 class="module-title">Visual Merge & Reorder</h3>
+                <p class="module-desc">Visually combine, reorder, and delete pages from multiple PDFs.</p>
+            </div>
+
+            <div class="module-card" style="border-top-color: #f97316" onclick="openWorkspace('split')">
+                <i class="fa-solid fa-file-zipper module-icon" style="color: #f97316"></i>
+                <h3 class="module-title">Split Document</h3>
+                <p class="module-desc">Extract every page of a PDF into separate files and download as ZIP.</p>
+            </div>
+
+            <div class="module-card" style="border-top-color: #8b5cf6" onclick="openWorkspace('extract')">
+                <i class="fa-solid fa-file-export module-icon" style="color: #8b5cf6"></i>
+                <h3 class="module-title">Extract Range</h3>
+                <p class="module-desc">Extract a specific range of pages (e.g., 2-5) into a new PDF.</p>
+            </div>
+
+            <div class="module-card" style="border-top-color: #10b981" onclick="openWorkspace('rotate')">
+                <i class="fa-solid fa-rotate-right module-icon" style="color: #10b981"></i>
+                <h3 class="module-title">Rotate Page</h3>
+                <p class="module-desc">Rotate a specific page 90 degrees clockwise.</p>
+            </div>
+
+            <div class="module-card" style="border-top-color: #06b6d4" onclick="openWorkspace('watermark')">
+                <i class="fa-solid fa-stamp module-icon" style="color: #06b6d4"></i>
+                <h3 class="module-title">Add Watermark</h3>
+                <p class="module-desc">Stamp text diagonally across a target page.</p>
+            </div>
+
+            <div class="module-card" style="border-top-color: #64748b" onclick="openWorkspace('blank')">
+                <i class="fa-solid fa-file-circle-plus module-icon" style="color: #64748b"></i>
+                <h3 class="module-title">Add Blank Page</h3>
+                <p class="module-desc">Append an empty page to the end of the document.</p>
+            </div>
+
+            <div class="module-card" style="border-top-color: #ef4444" onclick="openWorkspace('delete')">
+                <i class="fa-solid fa-file-circle-minus module-icon" style="color: #ef4444"></i>
+                <h3 class="module-title">Delete Page</h3>
+                <p class="module-desc">Remove a specific page from the document.</p>
+            </div>
+
+            <div class="module-card" style="border-top-color: #ec4899" onclick="openWorkspace('png')">
+                <i class="fa-solid fa-images module-icon" style="color: #ec4899"></i>
+                <h3 class="module-title">Export All to PNGs</h3>
+                <p class="module-desc">Render all pages as high-quality images and download as ZIP.</p>
+            </div>
+
+            <div class="module-card" style="border-top-color: #f59e0b" onclick="openWorkspace('ocr')">
+                <i class="fa-solid fa-font module-icon" style="color: #f59e0b"></i>
+                <h3 class="module-title">OCR to Markdown</h3>
+                <p class="module-desc">Extract text into Markdown files. Supports multiple languages.</p>
+            </div>
+            
+        </div>
+
+        <!-- View 2: Tool Workspace (Fixed: Starts with 'hidden' class to hide initially) -->
+        <div id="workspaceView" class="workspace hidden">
+            <div class="workspace-header">
+                <div class="ws-header-left">
+                    <button class="back-btn" onclick="showDashboard()"><i class="fa-solid fa-arrow-left"></i></button>
+                    <h2 id="wsTitle" style="margin: 0; font-size: 1.4rem;">Tool Name</h2>
+                </div>
+                <!-- Action Button moved to header for easy access -->
+                <button id="runBtn" class="btn" onclick="executeTool()">
+                    <i class="fa-solid fa-play"></i> Run Task
+                </button>
+            </div>
+            
+            <div class="workspace-body">
+                
+                <!-- Universal File Input -->
+                <div class="form-section">
+                    <h3>1. Select Source File(s)</h3>
+                    <input type="file" id="globalFileInput" accept="application/pdf" multiple>
+                    <small id="fileHint" style="color: var(--text-light); display: block; margin-top: 5px;">Select a PDF file to process.</small>
+                </div>
+
+                <!-- Visual Merge Area -->
+                <div id="visualMergeContainer" class="form-section hidden">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                        <h3 style="margin: 0;">2. Arrange Pages</h3>
+                        <button class="btn btn-danger" style="padding: 6px 12px; font-size: 0.8rem;" onclick="clearVisualMerge()">Clear All Pages</button>
+                    </div>
+                    <p style="font-size: 0.85rem; color: var(--text-light); margin-top: 0;">Drag and drop pages to reorder them. Click the red trash icon to remove a page. You can add more files using the input above.</p>
+                    <div id="mergeGrid" class="thumbnail-grid">
+                        <div style="grid-column: 1 / -1; text-align: center; color: #94a3b8; padding: 20px;">No pages loaded. Select files above.</div>
+                    </div>
+                </div>
+
+                <!-- Standard Dynamic Settings Area -->
+                <div id="settingsArea" class="form-section hidden">
+                    <h3>2. Configure Tool Options</h3>
+                    
+                    <div id="cfg-targetPage" class="input-group hidden">
+                        <label for="pageNum">Target Page Number</label>
+                        <input type="number" id="pageNum" min="1" value="1">
+                    </div>
+                    
+                    <div id="cfg-language" class="input-group hidden">
+                        <label for="ocrLang">OCR Language</label>
+                        <select id="ocrLang">
+                            <option value="eng">English</option>
+                            <option value="eng+chi_sim">English & Chinese (Simplified)</option>
+                            <option value="chi_sim">Chinese (Simplified)</option>
+                            <option value="chi_tra">Chinese (Traditional)</option>
+                            <option value="spa">Spanish</option>
+                            <option value="fra">French</option>
+                            <option value="deu">German</option>
+                            <option value="jpn">Japanese</option>
+                            <option value="kor">Korean</option>
+                            <option value="rus">Russian</option>
+                            <option value="ara">Arabic</option>
+                            <option value="hin">Hindi</option>
+                        </select>
+                    </div>
+
+                    <div id="cfg-watermark" class="input-group hidden">
+                        <label for="watermarkText">Watermark Text</label>
+                        <input type="text" id="watermarkText" placeholder="e.g., CONFIDENTIAL">
+                    </div>
+
+                    <div id="cfg-range" class="input-group hidden">
+                        <label for="pageRange">Page Range (Start-End)</label>
+                        <input type="text" id="pageRange" placeholder="e.g., 2-5">
+                    </div>
+                </div>
+
+                <!-- Output Console -->
+                <div>
+                    <h3 style="margin: 0 0 5px 0; font-size: 0.9rem;">Process Log</h3>
+                    <div id="statusLog" class="logger">Waiting for input...</div>
+                </div>
+
+            </div>
+        </div>
+
+    </main>
+
+    <script>
+        // --- Initialization & PDF.js caching ---
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        const { PDFDocument, degrees, rgb, StandardFonts } = PDFLib;
+
+        const pdfJsCache = {};
+        
+        async function getPdfJsDoc(file) {
+            const cacheKey = file.name + "_" + file.lastModified + "_" + file.size;
+            if (pdfJsCache[cacheKey]) return pdfJsCache[cacheKey];
+            
+            const arrayBuffer = await file.arrayBuffer();
+            const doc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+            pdfJsCache[cacheKey] = doc;
+            return doc;
+        }
+
+        // --- State Management ---
+        let currentTool = null;
+        let mergePagesState = []; 
+        let draggedIndex = -1;
+
+        const configMap = {
+            'merge': { title: 'Visual Merge & Reorder', showVisualMerge: true, showPage: false, showLang: false, showWatermark: false, showRange: false, multiFile: true },
+            'split': { title: 'Split Document to ZIP', showPage: false, showLang: false, showWatermark: false, showRange: false, multiFile: false },
+            'extract': { title: 'Extract Range', showPage: false, showLang: false, showWatermark: false, showRange: true, multiFile: false },
+            'rotate': { title: 'Rotate Page', showPage: true, showLang: false, showWatermark: false, showRange: false, multiFile: false },
+            'watermark': { title: 'Add Watermark', showPage: true, showLang: false, showWatermark: true, showRange: false, multiFile: false },
+            'blank': { title: 'Add Blank Page', showPage: false, showLang: false, showWatermark: false, showRange: false, multiFile: false },
+            'delete': { title: 'Delete Page', showPage: true, showLang: false, showWatermark: false, showRange: false, multiFile: false, isDanger: true },
+            'png': { title: 'Export All to PNGs (ZIP)', showPage: false, showLang: false, showWatermark: false, showRange: false, multiFile: false },
+            'ocr': { title: 'OCR Page to Markdown', showPage: true, showLang: true, showWatermark: false, showRange: false, multiFile: false }
+        };
+
+        // --- UI Controller ---
+        function log(msg, append = false) {
+            const logger = document.getElementById('statusLog');
+            if(append) logger.innerText += '\n' + msg;
+            else logger.innerText = msg;
+            logger.scrollTop = logger.scrollHeight;
+        }
+
+        function showDashboard() {
+            document.getElementById('dashboardView').classList.remove('hidden');
+            document.getElementById('workspaceView').classList.add('hidden');
+            document.querySelector('.nav-item').classList.add('active');
+            currentTool = null;
+            clearVisualMerge();
+        }
+
+        function openWorkspace(toolId) {
+            currentTool = toolId;
+            const config = configMap[toolId];
+            
+            document.getElementById('dashboardView').classList.add('hidden');
+            document.getElementById('workspaceView').classList.remove('hidden');
+            document.querySelector('.nav-item').classList.remove('active');
+
+            document.getElementById('wsTitle').innerText = config.title;
+            const runBtn = document.getElementById('runBtn');
+            
+            if(toolId === 'merge') {
+                runBtn.innerHTML = '<i class="fa-solid fa-download"></i> Export Merged PDF';
+                runBtn.className = 'btn btn-success';
+            } else if (toolId === 'ocr') {
+                runBtn.innerHTML = '<i class="fa-solid fa-file-code"></i> Extract & Download .md';
+                runBtn.className = 'btn';
+            } else {
+                runBtn.innerHTML = '<i class="fa-solid fa-play"></i> Run Task';
+                runBtn.className = config.isDanger ? 'btn btn-danger' : 'btn';
+            }
+            
+            const fileInput = document.getElementById('globalFileInput');
+            fileInput.value = ''; 
+            const hint = document.getElementById('fileHint');
+            if (config.multiFile) {
+                fileInput.setAttribute('multiple', 'true');
+                hint.innerText = "Select one or more PDF files. You can select more later to append them.";
+            } else {
+                fileInput.removeAttribute('multiple');
+                hint.innerText = "Select a single PDF file.";
+            }
+
+            document.getElementById('visualMergeContainer').classList.toggle('hidden', !config.showVisualMerge);
+            
+            const settingsArea = document.getElementById('settingsArea');
+            const showStandardSettings = config.showPage || config.showWatermark || config.showRange || config.showLang;
+            
+            if (showStandardSettings) {
+                settingsArea.classList.remove('hidden');
+                document.getElementById('cfg-targetPage').classList.toggle('hidden', !config.showPage);
+                document.getElementById('cfg-language').classList.toggle('hidden', !config.showLang);
+                document.getElementById('cfg-watermark').classList.toggle('hidden', !config.showWatermark);
+                document.getElementById('cfg-range').classList.toggle('hidden', !config.showRange);
+            } else {
+                settingsArea.classList.add('hidden');
+            }
+
+            log(`Workspace ready for: ${config.title}. Waiting for file...`);
+        }
+
+        document.getElementById('globalFileInput').addEventListener('change', async (e) => {
+            const files = e.target.files;
+            if (files.length > 0 && currentTool === 'merge') {
+                await loadFilesIntoVisualGrid(files);
+                e.target.value = ''; 
+            }
+        });
+
+        // --- VISUAL MERGE LOGIC ---
+        function clearVisualMerge() { mergePagesState = []; renderMergeGrid(); log("Visual merge grid cleared."); }
+
+        async function loadFilesIntoVisualGrid(files) {
+            log(`Loading ${files.length} file(s) into workspace...`);
+            const runBtn = document.getElementById('runBtn');
+            runBtn.disabled = true; 
+
+            for (let file of files) {
+                const pdfDoc = await getPdfJsDoc(file);
+                for (let i = 0; i < pdfDoc.numPages; i++) {
+                    mergePagesState.push({
+                        id: 'pg_' + Math.random().toString(36).substr(2, 9),
+                        file: file, fileName: file.name, originalIndex: i, thumbUrl: null
+                    });
+                }
+            }
+            renderMergeGrid();
+
+            log(`Generating thumbnails...`, true);
+            for (let i = 0; i < mergePagesState.length; i++) {
+                let item = mergePagesState[i];
+                if (!item.thumbUrl) {
+                    const pdfDoc = await getPdfJsDoc(item.file);
+                    const canvas = await renderPageToCanvas(pdfDoc, item.originalIndex, 0.3);
+                    item.thumbUrl = canvas.toDataURL("image/jpeg", 0.6);
+                    updateThumbnailElement(item.id, item.thumbUrl);
+                }
+            }
+            
+            runBtn.disabled = false;
+            log(`All pages loaded. Drag to reorder, use trash icons to remove pages. Click Export when ready.`, true);
+        }
+
+        function renderMergeGrid() {
+            const grid = document.getElementById('mergeGrid');
+            grid.innerHTML = ''; 
+            if (mergePagesState.length === 0) {
+                grid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; color: #94a3b8; padding: 20px;">No pages loaded. Select files above.</div>';
+                return;
+            }
+            mergePagesState.forEach((item, index) => {
+                const card = document.createElement('div');
+                card.className = 'page-card' + (item.thumbUrl ? '' : ' placeholder');
+                card.id = item.id;
+                card.draggable = true;
+                
+                card.addEventListener('dragstart', (e) => handleDragStart(e, index));
+                card.addEventListener('dragover', (e) => handleDragOver(e, index));
+                card.addEventListener('dragleave', handleDragLeave);
+                card.addEventListener('drop', (e) => handleDrop(e, index));
+
+                card.innerHTML = `
+                    <button class="delete-btn" onclick="removeVisualPage(${index})" title="Remove Page"><i class="fa-solid fa-xmark"></i></button>
+                    ${item.thumbUrl ? `<img src="${item.thumbUrl}" alt="Page Thumbnail">` : `<div class="loader"></div><img src="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=">`}
+                    <div class="page-label" title="${item.fileName}">${item.fileName}</div>
+                    <div class="page-label" style="font-weight:bold; margin-top:2px;">Pg ${item.originalIndex + 1}</div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        function updateThumbnailElement(id, thumbUrl) {
+            const card = document.getElementById(id);
+            if (card) {
+                card.classList.remove('placeholder');
+                const img = card.querySelector('img');
+                const loader = card.querySelector('.loader');
+                if(loader) loader.remove();
+                img.src = thumbUrl;
+            }
+        }
+
+        function removeVisualPage(index) {
+            mergePagesState.splice(index, 1);
+            renderMergeGrid();
+            log(`Page removed. Total remaining: ${mergePagesState.length}`);
+        }
+
+        function handleDragStart(e, index) { draggedIndex = index; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', index); }
+        function handleDragOver(e, index) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (index !== draggedIndex) e.currentTarget.classList.add('drag-over'); }
+        function handleDragLeave(e) { e.currentTarget.classList.remove('drag-over'); }
+        function handleDrop(e, targetIndex) {
+            e.preventDefault(); e.currentTarget.classList.remove('drag-over');
+            if (draggedIndex === targetIndex || draggedIndex === -1) return;
+            const draggedItem = mergePagesState.splice(draggedIndex, 1)[0];
+            mergePagesState.splice(targetIndex, 0, draggedItem);
+            renderMergeGrid(); 
+            draggedIndex = -1;
+        }
+
+        // --- Execution Router ---
+        async function executeTool() {
+            const btn = document.getElementById('runBtn');
+            try {
+                btn.disabled = true;
+                log(`Starting operation: ${configMap[currentTool].title}...`);
+                
+                switch(currentTool) {
+                    case 'merge': await executeVisualMerge(); break;
+                    case 'split': await splitPDF(); break;
+                    case 'extract': await extractRange(); break;
+                    case 'rotate': await rotatePage(); break;
+                    case 'watermark': await addWatermark(); break;
+                    case 'blank': await addBlankPage(); break;
+                    case 'delete': await deletePage(); break;
+                    case 'png': await exportPNG(); break;
+                    case 'ocr': await runOCR(); break;
+                }
+            } catch (e) {
+                log(`[ERROR]: ${e.message}`);
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        // --- Tool Implementations ---
+        async function executeVisualMerge() {
+            if (mergePagesState.length === 0) throw new Error("No pages in the grid to export. Please add files first.");
+            log(`Compiling final PDF with ${mergePagesState.length} pages...`);
+            
+            const mergedPdf = await PDFDocument.create();
+            const pdfLibCache = {}; 
+
+            for (let i = 0; i < mergePagesState.length; i++) {
+                const item = mergePagesState[i];
+                const cacheKey = item.file.name + "_" + item.file.size;
+                if (!pdfLibCache[cacheKey]) {
+                    const arrayBuffer = await item.file.arrayBuffer();
+                    pdfLibCache[cacheKey] = await PDFDocument.load(arrayBuffer);
+                }
+                const sourceDoc = pdfLibCache[cacheKey];
+                const [copiedPage] = await mergedPdf.copyPages(sourceDoc, [item.originalIndex]);
+                mergedPdf.addPage(copiedPage);
+                if(i % 5 === 0) log(`Processing page ${i + 1} of ${mergePagesState.length}...`, true);
+            }
+            log("Finalizing output...", true);
+            downloadBytes(await mergedPdf.save(), "Custom_Arranged_Merge.pdf");
+            log("Success! Custom PDF downloaded.", true);
+        }
+
+        async function getFiles() {
+            const files = document.getElementById('globalFileInput').files;
+            if (files.length === 0) throw new Error("Please select at least one PDF file first.");
+            return files;
+        }
+
+        async function getPageIndex() {
+            const pageInput = parseInt(document.getElementById('pageNum').value);
+            if (isNaN(pageInput) || pageInput < 1) throw new Error("Invalid page number.");
+            return pageInput - 1; 
+        }
+
+        function downloadBytes(bytes, filename, type = "application/pdf") {
+            const blob = new Blob([bytes], { type });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        async function splitPDF() {
+            const files = await getFiles();
+            const arrayBuffer = await files[0].arrayBuffer();
+            const pdf = await PDFDocument.load(arrayBuffer);
+            const pageCount = pdf.getPageCount();
+            
+            log(`Found ${pageCount} pages. Preparing to split and zip...`, true);
+            const logger = document.getElementById('statusLog');
+            const zip = new JSZip();
+            
+            for (let i = 0; i < pageCount; i++) {
+                logger.innerText = `Extracting page ${i + 1} of ${pageCount}...`;
+                const newPdf = await PDFDocument.create();
+                const [copiedPage] = await newPdf.copyPages(pdf, [i]);
+                newPdf.addPage(copiedPage);
+                const pdfBytes = await newPdf.save();
+                zip.file(`page_${i + 1}.pdf`, pdfBytes);
+            }
+            log("Bundling files into ZIP archive...", true);
+            const content = await zip.generateAsync({ type: "blob" });
+            const url = URL.createObjectURL(content);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = "split_pages.zip";
+            a.click();
+            URL.revokeObjectURL(url);
+            log("Split complete! ZIP file downloaded.", true);
+        }
+
+        async function extractRange() {
+            const files = await getFiles();
+            const rangeStr = document.getElementById('pageRange').value;
+            const parts = rangeStr.split('-');
+            if (parts.length !== 2) throw new Error("Invalid range format. Use '2-5'.");
+            const start = parseInt(parts[0].trim());
+            const end = parseInt(parts[1].trim());
+            if (isNaN(start) || isNaN(end) || start > end || start < 1) throw new Error("Invalid range numbers.");
+
+            const arrayBuffer = await files[0].arrayBuffer();
+            const pdf = await PDFDocument.load(arrayBuffer);
+            if (end > pdf.getPageCount()) throw new Error(`Document only has ${pdf.getPageCount()} pages.`);
+
+            const newPdf = await PDFDocument.create();
+            const pageIndices = [];
+            for (let i = start - 1; i < end; i++) pageIndices.push(i);
+            const copiedPages = await newPdf.copyPages(pdf, pageIndices);
+            copiedPages.forEach((page) => newPdf.addPage(page));
+            
+            downloadBytes(await newPdf.save(), `extracted_pages_${start}_to_${end}.pdf`);
+            log(`Successfully extracted pages ${start} to ${end}!`, true);
+        }
+
+        async function rotatePage() {
+            const files = await getFiles();
+            const pageIndex = await getPageIndex();
+            const arrayBuffer = await files[0].arrayBuffer();
+            const pdf = await PDFDocument.load(arrayBuffer);
+            if (pageIndex >= pdf.getPageCount()) throw new Error("Page number out of bounds.");
+            const page = pdf.getPage(pageIndex);
+            page.setRotation(degrees(page.getRotation().angle + 90));
+            downloadBytes(await pdf.save(), "rotated_page.pdf");
+            log(`Page ${pageIndex + 1} rotated 90° clockwise.`, true);
+        }
+
+        async function addWatermark() {
+            const files = await getFiles();
+            const pageIndex = await getPageIndex();
+            const text = document.getElementById('watermarkText').value || "CONFIDENTIAL";
+            const arrayBuffer = await files[0].arrayBuffer();
+            const pdf = await PDFDocument.load(arrayBuffer);
+            if (pageIndex >= pdf.getPageCount()) throw new Error("Page number out of bounds.");
+            const page = pdf.getPage(pageIndex);
+            const { width, height } = page.getSize();
+            const font = await pdf.embedFont(StandardFonts.HelveticaBold);
+            
+            page.drawText(text, {
+                x: width / 4, y: height / 3, size: 50, font: font, color: rgb(0.95, 0.1, 0.1), opacity: 0.4, rotate: degrees(45)
+            });
+            downloadBytes(await pdf.save(), "watermarked.pdf");
+            log(`Watermark applied to page ${pageIndex + 1}.`, true);
+        }
+
+        async function addBlankPage() {
+            const files = await getFiles();
+            const arrayBuffer = await files[0].arrayBuffer();
+            const pdf = await PDFDocument.load(arrayBuffer);
+            pdf.addPage();
+            downloadBytes(await pdf.save(), "document_with_blank_page.pdf");
+            log("Blank page added to the end of the document.", true);
+        }
+
+        async function deletePage() {
+            const files = await getFiles();
+            const pageIndex = await getPageIndex();
+            const arrayBuffer = await files[0].arrayBuffer();
+            const pdf = await PDFDocument.load(arrayBuffer);
+            if (pageIndex >= pdf.getPageCount()) throw new Error("Page number out of bounds.");
+            pdf.removePage(pageIndex);
+            downloadBytes(await pdf.save(), "page_deleted.pdf");
+            log(`Page ${pageIndex + 1} permanently removed.`, true);
+        }
+
+        async function renderPageToCanvas(pdfDoc, pageIndex, scale = 2.0) {
+            if (pageIndex >= pdfDoc.numPages) throw new Error("Page number out of bounds.");
+            const page = await pdfDoc.getPage(pageIndex + 1); 
+            const viewport = page.getViewport({ scale: scale }); 
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            canvas.height = viewport.height;
+            canvas.width = viewport.width;
+            await page.render({ canvasContext: context, viewport: viewport }).promise;
+            return canvas;
+        }
+
+        async function exportPNG() {
+            const files = await getFiles();
+            log("Loading PDF for rendering...", true);
+            const pdfDoc = await getPdfJsDoc(files[0]);
+            const pageCount = pdfDoc.numPages;
+            const logger = document.getElementById('statusLog');
+            const zip = new JSZip();
+            
+            for (let i = 0; i < pageCount; i++) {
+                logger.innerText = `Rendering page ${i + 1} of ${pageCount} to PNG...`;
+                const canvas = await renderPageToCanvas(pdfDoc, i, 2.0);
+                const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+                zip.file(`page_${i + 1}.png`, blob);
+            }
+            log("Bundling images into ZIP archive...", true);
+            const content = await zip.generateAsync({ type: "blob" });
+            const url = URL.createObjectURL(content);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = "pdf_images.zip";
+            a.click();
+            URL.revokeObjectURL(url);
+            log(`Successfully exported all ${pageCount} pages as PNGs!`, true);
+        }
+
+        async function runOCR() {
+            const files = await getFiles();
+            const pageIndex = await getPageIndex();
+            const lang = document.getElementById('ocrLang').value;
+            
+            log(`Parsing document...`, true);
+            const pdfDoc = await getPdfJsDoc(files[0]);
+            
+            log(`Rendering page ${pageIndex + 1} for OCR...`, true);
+            const canvas = await renderPageToCanvas(pdfDoc, pageIndex, 2.0);
+            const imageData = canvas.toDataURL("image/png");
+            
+            log(`Loading Tesseract AI engine [Language: ${lang}].\n(Note: First run downloads language data, which may take a minute)`, true);
+            
+            const result = await Tesseract.recognize(imageData, lang, {
+                logger: m => {
+                    if (m.status === 'recognizing text') {
+                        document.getElementById('statusLog').innerText = `OCR Progress: ${Math.round(m.progress * 100)}%`;
+                    }
+                }
+            });
+            
+            log("Processing document structure into Markdown...", true);
+            
+            let markdownText = "";
+            
+            if (result.data.paragraphs && result.data.paragraphs.length > 0) {
+                result.data.paragraphs.forEach(paragraph => {
+                    let paraText = paragraph.lines.map(line => line.text.replace(/\n/g, '').trim()).join(' ');
+                    markdownText += paraText + "\n\n";
+                });
+            } else {
+                markdownText = result.data.text;
+            }
+
+            if (!markdownText.trim()) {
+                log("Process completed, but no text was found on this page.", true);
+                return;
+            }
+
+            const blob = new Blob([markdownText], { type: "text/markdown;charset=utf-8" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `extracted_page_${pageIndex + 1}.md`;
+            a.click();
+            URL.revokeObjectURL(url);
+            
+            log("--- OCR Extraction Complete ---\nMarkdown file (.md) has been downloaded successfully!", true);
+        }
+    </script>
+</body>
+</html>
